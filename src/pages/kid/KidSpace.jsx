@@ -28,6 +28,7 @@ import WordOfDay from "../../components/WordOfDay.jsx";
 import { Confetti, TodayStrip, BadgeGrid, NewBadgePop } from "../../components/Fun.jsx";
 import ComingSoon, { SoonPill } from "../../components/ComingSoon.jsx";
 import { FEATURES } from "../../lib/config.js";
+import GrownupGate from "../../components/GrownupGate.jsx";
 import { PackList, PackView, GiniChat, ChatPicker } from "../../components/Packs.jsx";
 import { packById } from "../../lib/packs.js";
 import { chirp, isQuiet, setQuiet } from "../../lib/chirp.js";
@@ -112,23 +113,32 @@ export default function KidSpace({ fam }) {
   else if (sub === "packs") { const pk = packById(route[2]); page = pk ? <><Head back={() => go("kid", "packs")} title="Real-life Kannada" kn="ನಿಜ ಜೀವನದ ಮಾತು" /><PackView key={pk.id} pack={pk} voiceLib={voiceLib} kid={!adult} earn={earn} /></> : <><Head back={back} title="Real-life Kannada" kn="ನಿಜ ಜೀವನದ ಮಾತು" /><PackList kid={!adult} onOpen={(x) => go("kid", "packs", x.id)} /></>; }
   else if (sub === "chat") { const pk = packById(route[2]); page = pk ? <GiniChat key={pk.id} pack={pk} voiceLib={voiceLib} kid={!adult} earn={earn} onBack={() => go("kid", "chat")} /> : <><Head back={back} title="Talk with Gini" kn="ಗಿಣಿ ಜೊತೆ ಮಾತು" /><div className="kid-card" style={{ gap: 6 }}><b>Who should Gini be today?</b><span className="small muted">Gini pretends to be someone. You answer in Kannada: tap an answer, speak, or type.</span></div><ChatPicker kid={!adult} onPick={(x) => go("kid", "chat", x.id)} /></>; }
   else page = <KidHome {...props} DAYS={DAYS} daysDone={daysDone} nextDay={nextDay} />;
-  return <KidFrame child={child} adult={adult} onExit={() => { stopAudio(); go(adult ? "learn" : ""); }}>{page}</KidFrame>;
+  // Where a grown-up can go from here. A child signed in with their own number can only be signed out;
+  // a parent's session can jump to any corner or another child.
+  const kidLogin = profile && profile.role === "kid";
+  const others = (fam.kids || []).filter((c) => c.id !== child.id);
+  const me = others.find((c) => c.adult);
+  const leave = (fn) => () => { stopAudio(); fn(); };
+  const gateOptions = kidLogin ? [
+    { key: "out", icon: "🚪", label: `Sign ${nm} out of this device`, sub: "Then a parent can sign in with Google or an email code", kind: "main", onClick: leave(() => store.signOut().then(() => go(""))) },
+  ] : [
+    { key: "hub", icon: "🏠", label: "Home: all corners", sub: "Kid's, Parent, Learning and General", kind: "main", onClick: leave(() => go("")) },
+    { key: "parent", icon: "👪", label: `Parent corner for ${nm}`, sub: "Progress, the 6-month plan, packets, messages", onClick: leave(() => go("home")) },
+    ...others.filter((c) => !c.adult).map((c) => ({ key: c.id, icon: "🦜", label: `Switch to ${firstName(c.name)}'s corner`, onClick: () => { stopAudio(); fam.setSel && fam.setSel(c.id); go("kid"); } })),
+    ...(me ? [{ key: "me", icon: "📚", label: "My Learning corner", sub: "Your own lessons", onClick: leave(() => { fam.setSel && fam.setSel(me.id); go("learn"); }) }] : []),
+  ];
+  return <KidFrame child={child} adult={adult} onExit={() => { stopAudio(); go("learn"); }} gateOptions={gateOptions} gateNote={kidLogin ? `This device is signed in with ${nm}'s number.` : ""}>{page}</KidFrame>;
 }
 
-function KidFrame({ child, onExit, children, adult }) {
-  const [hold, setHold] = useState(0);
-  const t = useRef(null);
-  function down() { let p = 0; t.current = setInterval(() => { p += 10; setHold(p); if (p >= 100) { clearInterval(t.current); setHold(0); onExit(); } }, 80); }
-  function up() { clearInterval(t.current); setHold(0); }
+function KidFrame({ child, onExit, children, adult, gateOptions, gateNote }) {
+  const [gate, setGate] = useState(false);
   return (
     <div className={adult ? "kid adult" : "kid"}>
       <LetterSky opacity={0.16} count={35} />
       <div className="kid-in">
         <div className="kid-top">
-          {adult ? <button className="btn ghost small" onClick={onExit}><ArrowLeft size={16} /> My page</button> : <button className="btn ghost small" onPointerDown={down} onPointerUp={up} onPointerLeave={up} onKeyDown={(e) => e.key === "Enter" && onExit()} aria-label="Grown-ups: press and hold to leave"
-            style={{ background: `linear-gradient(90deg, var(--yellow-soft) ${hold}%, #fff ${hold}%)` }}>
-            {hold ? "Keep holding…" : "Grown-ups"}
-          </button>}
+          {adult ? <button className="btn ghost small" onClick={onExit}><ArrowLeft size={16} /> My page</button> : <button className="btn ghost small grownup-btn" onClick={() => setGate(true)} aria-label="Grown-ups: leave the kid's corner"><Lock size={15} /> Grown-ups</button>}
+          {gate && <GrownupGate options={gateOptions} note={gateNote} onClose={() => setGate(false)} />}
           <span className="spacer" />
           <QuietBtn />
           <span className="stat"><Star size={20} color="#e0a100" fill="#ffc72c" /> {child.stars || 0}</span>
