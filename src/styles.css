@@ -977,3 +977,23 @@ table.kids tbody tr:hover { background: var(--yellow-soft); }
 .corner-tile .ct-icon { font-size: 34px; } .corner-tile small { color: #7b5b52; line-height: 1.3; }
 .general-page { min-height: 100dvh; background: var(--paper); position: relative; }
 @media (max-width: 360px) { .doors, .corner-grid { grid-template-columns: 1fr; } }
+
+/* Grown-ups gate: tap, type three numbers written as words, pick where to go */
+.grownup-btn { gap: 6px; }
+.gate { display: grid; gap: 12px; justify-items: center; text-align: center; }
+.gate-q { margin: 0; display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--muted, #7b5b52); }
+.gate-words { margin: 0; font: 800 26px/1.2 "Nunito", sans-serif; color: var(--deep, #8a0d1f); letter-spacing: .02em; }
+.gate-boxes { display: flex; gap: 10px; }
+.gate-boxes span { width: 54px; height: 62px; border-radius: 14px; border: 2px solid #f0dfbb; background: #fff; display: grid; place-items: center; font: 800 30px "Nunito", sans-serif; color: var(--ink, #2a0f0c); }
+.gate-boxes span.on { border-color: var(--red, #c8102e); box-shadow: 0 0 0 3px rgb(200 16 46 / .15); }
+.gate-pad { display: grid; grid-template-columns: repeat(3, 72px); gap: 10px; }
+.gate-pad button { height: 58px; border-radius: 16px; border: 0; background: #fff; box-shadow: 0 2px 0 #f0dfbb, 0 4px 12px rgb(120 60 0 / .08); font: 800 24px "Nunito", sans-serif; color: var(--ink, #2a0f0c); cursor: pointer; display: grid; place-items: center; touch-action: manipulation; }
+.gate-pad button:active { transform: translateY(2px); box-shadow: 0 0 0 #f0dfbb; }
+.gate-menu { display: grid; gap: 10px; }
+.gate-opt { display: flex; align-items: center; gap: 14px; text-align: left; padding: 14px 16px; border-radius: 18px; border: 2px solid #f0dfbb; background: #fff; cursor: pointer; font: inherit; color: inherit; }
+.gate-opt:hover { border-color: var(--yellow, #ffc72c); }
+.gate-opt.main { background: var(--yellow-soft, #fff4cc); border-color: var(--yellow, #ffc72c); }
+.gate-opt .go-ic { font-size: 30px; width: 40px; text-align: center; }
+.gate-opt b { display: block; font-size: 17px; }
+.gate-opt small { display: block; color: var(--muted, #7b5b52); margin-top: 2px; }
+.gate-boxes.shake { animation: shake .4s ease 2; }

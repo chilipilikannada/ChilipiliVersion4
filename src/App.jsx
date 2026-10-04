@@ -60,6 +60,9 @@ export default function App() {
 
   const ctx = useMemo(() => ({ user, profile, setProfile, school, say, route, go, isStaff: profile && (profile.role === "teacher" || profile.role === "admin") }), [user, profile, school, say, route, go]);
 
+  // Rescue link for support: chilipilikannada.com/#/signout signs this device out.
+  useEffect(() => { if (route[0] === "signout") { if (user) store.signOut().then(() => go("")); else if (user === null) go(""); } }, [route[0], user]);
+
   let page;
   if (user === undefined || (user && profile === undefined)) page = <Loading />;
   else if (route[0] === "setup") page = <SetupGuide />;
