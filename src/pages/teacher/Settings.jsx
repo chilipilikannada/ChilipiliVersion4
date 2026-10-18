@@ -10,7 +10,7 @@ import { friendlyError } from "../../App.jsx";
 const ZONES = [["America/Chicago", "CT"], ["America/New_York", "ET"], ["America/Denver", "MT"], ["America/Los_Angeles", "PT"], ["Asia/Kolkata", "IST"], ["Europe/London", "UK"], ["Australia/Sydney", "AET"]];
 
 export default function Settings({ data }) {
-  const { school, say, profile } = useApp();
+  const { school, say, profile, go } = useApp();
   const join = useDoc("settings", "join");
   const [s, setS] = useState({ schoolName: school.schoolName, contactEmail: school.contactEmail, venue: school.venue, timeZone: school.timeZone, groups: school.groups.join(", ") });
   const [code, setCode] = useState("");
@@ -34,11 +34,6 @@ export default function Settings({ data }) {
     if (c && !/^[A-Z0-9-]{4,20}$/.test(c)) return say("Use 4 to 20 letters or numbers.", true);
     try { await store.set("settings", "join", { code: c, at: Date.now() }); setCode(c); say(c ? `Class code is ${c}.` : "Class code turned off. New families wait for your approval."); } catch (e) { say(friendlyError(e), true); }
   }
-  async function setRole(u, role) {
-    try { await store.update("users", u.id, { role }); say(`${u.name} is now ${role === "parent" ? "a parent" : role === "teacher" ? "a teacher" : "an admin"}.`); } catch (e) { say(friendlyError(e), true); }
-  }
-  const staff = data.users.filter((u) => u.role !== "parent" || u.email === profile.email);
-  const parents = data.users.filter((u) => u.role === "parent");
 
   return (
     <div className="stack">
@@ -73,13 +68,8 @@ export default function Settings({ data }) {
       {isAdmin && (
         <div className="card">
           <h3>Team</h3>
-          <p className="muted small">Ask a helper to sign in once, then make them a teacher here.</p>
-          <ul className="list">{[...staff, ...parents].map((u) => (
-            <li key={u.id}><Avatar name={u.name} size="sm" /><div className="grow"><b>{u.name}</b><div className="sub">{u.email}</div></div>
-              {u.email === profile.email ? <span className="pill yellow">You · {u.role}</span> :
-                <select className="input" style={{ width: "auto", minHeight: 38, padding: "6px 10px" }} value={u.role} onChange={(e) => setRole(u, e.target.value)} aria-label={`Role for ${u.name}`}><option value="parent">Parent</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select>}
-            </li>
-          ))}</ul>
+          <p className="muted small" style={{ margin: 0 }}>Add teachers and guides, and give each one their own classes, in <b>Teachers &amp; classes</b>. You stay the only admin.</p>
+          <div><button className="btn ghost small" onClick={() => go("team")}>Open Teachers &amp; classes</button></div>
         </div>
       )}
       <div className="card">

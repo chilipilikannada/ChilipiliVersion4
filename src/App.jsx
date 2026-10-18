@@ -52,13 +52,21 @@ export default function App() {
           p = { name: user.name || user.email.split("@")[0], email: user.email, role, phone: "", createdAt: Date.now() };
           await store.set("users", user.uid, p);
         }
-        if (live) setProfile({ ...p, uid: user.uid, email: (p.email || user.email).toLowerCase() });
+        const email = (p.email || user.email).toLowerCase();
+        // Teachers and guides are added by the admin; they see only their own classes.
+        let staff = null;
+        if (p.role !== "admin") { try { staff = await store.get("staff", email); } catch {} }
+        const teacher = staff && staff.active !== false;
+        if (live) setProfile({ ...p, uid: user.uid, email, ...(teacher ? { role: "teacher", classes: staff.classes || [], staffName: staff.name || p.name } : {}) });
       } catch (e) { console.error(e); say(friendlyError(e), true); if (live) setProfile(null); }
     })();
     return () => { live = false; };
   }, [user, say]);
 
-  const ctx = useMemo(() => ({ user, profile, setProfile, school, say, route, go, isStaff: profile && (profile.role === "teacher" || profile.role === "admin") }), [user, profile, school, say, route, go]);
+  // Teachers and the admin can also open their own family's corners.
+  const [view, setViewState] = useState(() => { try { return localStorage.getItem("chilipili-view") || ""; } catch { return ""; } });
+  const setView = useCallback((v) => { try { localStorage.setItem("chilipili-view", v); } catch {} setViewState(v); }, []);
+  const ctx = useMemo(() => ({ user, profile, setProfile, school, say, route, go, view, setView, isStaff: profile && (profile.role === "teacher" || profile.role === "admin"), isAdmin: profile && profile.role === "admin" }), [user, profile, school, say, route, go, view, setView]);
 
   // Rescue link for support: chilipilikannada.com/#/signout signs this device out.
   useEffect(() => { if (route[0] === "signout") { if (user) store.signOut().then(() => go("")); else if (user === null) go(""); } }, [route[0], user]);
@@ -68,7 +76,7 @@ export default function App() {
   else if (route[0] === "setup") page = <SetupGuide />;
   else if (!user) page = route[0] === "signin" || route[0] === "kids" ? <SignIn kids={route[0] === "kids"} /> : route[0] === "general" ? <GeneralCorner standalone /> : <Landing />;
   else if (!profile) page = <SignIn />;
-  else page = profile.role === "kid" ? <KidApp /> : ctx.isStaff ? <TeacherApp /> : <ParentApp />;
+  else page = profile.role === "kid" ? <KidApp /> : ctx.isStaff && view !== "family" ? <TeacherApp /> : <ParentApp />;
 
   return (
     <AppCtx.Provider value={ctx}>

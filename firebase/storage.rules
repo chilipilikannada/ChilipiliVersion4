@@ -6,9 +6,21 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
-    function staff() {
-      return signedIn()
-        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'];
+    function email() { return request.auth.token.get('email', '').lower(); }
+    function admin() {
+      return signedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // A teacher or guide the admin added (staff/{email}), active.
+    function teacher() {
+      return signedIn() && email() != ''
+        && firestore.exists(/databases/(default)/documents/staff/$(email()))
+        && firestore.get(/databases/(default)/documents/staff/$(email())).data.get('active', true) == true;
+    }
+    // The admin, or the teacher of this child's class.
+    function staffFor(cid) {
+      return admin() || (teacher()
+        && firestore.get(/databases/(default)/documents/children/$(cid)).data.get('classId', '') != ''
+        && firestore.get(/databases/(default)/documents/children/$(cid)).data.get('classId', '') in firestore.get(/databases/(default)/documents/staff/$(email())).data.get('classes', []));
     }
     function parentOf(cid) {
       return signedIn()
@@ -23,15 +35,15 @@ service firebase.storage {
     }
 
     // Packet photos, speaking recordings, voice notes in messages
-    match /handins/{cid}/{file}  { allow read: if staff() || parentOf(cid); allow create: if (staff() || parentOf(cid)) && media(20); }
-    match /speaking/{cid}/{file} { allow read: if staff() || parentOf(cid); allow create: if (staff() || parentOf(cid)) && media(20); }
-    match /messages/{cid}/{file} { allow read: if staff() || parentOf(cid); allow create: if (staff() || parentOf(cid)) && media(20); }
+    match /handins/{cid}/{file}  { allow read: if staffFor(cid) || parentOf(cid); allow create: if (staffFor(cid) || parentOf(cid)) && media(20); }
+    match /speaking/{cid}/{file} { allow read: if staffFor(cid) || parentOf(cid); allow create: if (staffFor(cid) || parentOf(cid)) && media(20); }
+    match /messages/{cid}/{file} { allow read: if staffFor(cid) || parentOf(cid); allow create: if (staffFor(cid) || parentOf(cid)) && media(20); }
     // The teacher's replies
-    match /feedback/{cid}/{file} { allow read: if staff() || parentOf(cid); allow create: if staff() && media(20); }
+    match /feedback/{cid}/{file} { allow read: if staffFor(cid) || parentOf(cid); allow create: if staffFor(cid) && media(20); }
     // Class feed photos and the teacher's word recordings
-    match /posts/{file} { allow read: if signedIn(); allow write: if staff() && media(10); }
-    match /voice/{file} { allow read: if signedIn(); allow write: if staff() && media(5); }
+    match /posts/{file} { allow read: if signedIn(); allow write: if (admin() || teacher()) && media(10); }
+    match /voice/{file} { allow read: if signedIn(); allow write: if admin() && media(5); }
     // The teacher's own worksheets (PDFs or images) for packet weeks
-    match /packets/{file} { allow read: if signedIn(); allow write: if staff() && media(20); }
+    match /packets/{file} { allow read: if signedIn(); allow write: if admin() && media(20); }
   }
 }

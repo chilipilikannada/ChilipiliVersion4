@@ -43,7 +43,7 @@ export default function Handwriting({ data }) {
 
   return (
     <div className="stack">
-      <div className="page-title"><h1>My handwriting</h1><p className="muted">Write each letter once, slowly, over the grey shape, the way you teach it. Children then watch your strokes, see a green start dot and arrows, and get checked on your order and direction.</p></div>
+      <div className="page-title"><h1>My handwriting</h1><p className="muted">Write each letter once, slowly, over the grey shape, the way you teach it (start point, direction and order). Children then watch your strokes, follow your green start dot and arrows, and the printable packets show the same path. Letters you haven't written yet show only dots, never a direction, so nothing is taught the wrong way. Start with the vowels and consonants.</p></div>
       <div className="card" style={{ padding: 12 }}>
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
           {HAND_SETS.map((s, i) => <button key={s.title} className="chip" aria-pressed={i === set} onClick={() => { setSet(i); setSel(s.items[0]); setMode(strokeLib[voiceKey(s.items[0])] ? "watch" : "record"); }} style={{ flex: "none" }}>{s.title} <span className="tiny">{count(s)}/{s.items.length}</span></button>)}

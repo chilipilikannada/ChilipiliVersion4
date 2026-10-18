@@ -2,7 +2,8 @@
 // Kannada correctly, then placed into a PDF with pdf-lib.
 import { ensureFont, layout, drawGlyph, fitRecord, centreDots, autoPath, PAD_FONT } from "./strokes.js";
 import { storyPics } from "./storyPics.js";
-import { LETTER_PIC } from "./journey.js";
+import { LETTER_PIC, journeyOf, learnedBefore } from "./journey.js";
+import { charsOf, canWrite, firstLetter } from "./writable.js";
 import { TRACKS, KAG_GRID_CONS, LETTER_WORD, SOUND, tiles } from "./course.js";
 import { voiceKey } from "./audio.js";
 import { storyFor } from "./stories.js";
@@ -76,8 +77,8 @@ function traceRow(p, text, rec, easy = false) {
     : cols === 8 ? ["model", "ghost", "ghost", "dots", "dots", "empty", "empty", "empty"]
     : cols === 4 ? ["model", "dots", "ghost", "empty"] : ["model", "dots", "empty"];
   const recFit = rec ? fitRecord(rec, L) : null;
-  const guide = recFit || autoPath(L); // the teacher's strokes, or a path worked out from the shape
-  const dots = centreDots(L, guide, 0.06);
+  const guide = recFit; // only the teacher's own strokes show a direction
+  const dots = centreDots(L, recFit || autoPath(L), 0.06);
   kinds.forEach((k, i) => {
     const x = M + i * (bw + gap), ox = x + (bw - H * L.aspect) / 2, y = p.y, oy = y + (bh - H) / 2;
     g.fillStyle = k === "model" ? "#fff4cf" : "#fff"; roundRect(g, x, y, bw, bh, 12); g.fill();
@@ -113,7 +114,7 @@ function traceRow(p, text, rec, easy = false) {
       g.fillStyle = "#8f8676";
       for (const d of dots) { g.beginPath(); g.arc(ox + d.x * H, oy + d.y * H, Math.max(2.4, H * (easy ? 0.028 : 0.022)), 0, Math.PI * 2); g.fill(); }
       const f = dots.find((d) => d.first) || dots[0];
-      if (f) { g.fillStyle = "#1f8a4c"; g.beginPath(); g.arc(ox + f.x * H, oy + f.y * H, Math.max(4, H * 0.04), 0, Math.PI * 2); g.fill(); }
+      if (f && recFit) { g.fillStyle = "#1f8a4c"; g.beginPath(); g.arc(ox + f.x * H, oy + f.y * H, Math.max(4, H * 0.04), 0, Math.PI * 2); g.fill(); }
     }
   });
   p.y += bh + 10;
@@ -190,7 +191,7 @@ export async function packetPdf({ child, pk, strokeLib = {}, school, easy = fals
   const perPage = easy ? 5 : 6;
   for (let s = 0; s < Math.max(1, items.length); s += perPage) {
     const p = newPage(); pages.push(p);
-    p.meta = { title: `Letters: ${U.en}`, sub: `${T.icon} ${T.en} path · trace the light letters, then write on your own. Start at the green dot.` };
+    p.meta = { title: `Letters: ${U.en}`, sub: `${T.icon} ${T.en} path · trace the light letters, then write on your own.` };
     p.y = 290;
     section(p, s === 0 ? "1  Trace and write" : "1  Trace and write (continued)");
     for (const t of items.slice(s, s + perPage)) { if (!room(p, easy ? 240 : 190)) break; traceRow(p, t, strokeLib[voiceKey(t)], easy); }
@@ -201,9 +202,12 @@ export async function packetPdf({ child, pk, strokeLib = {}, school, easy = fals
     const p = newPage(); pages.push(p); p.meta = { title: "Vowel signs grid", sub: "Fill in every empty box." }; p.y = 290;
     section(p, "2  Fill in the vowel-sign grid"); kagGrid(p, U.signs);
   }
-  if (U.words && U.words.length) {
+  // Letters this child has been taught so far: only words made of these are given for writing.
+  let have; try { const j = journeyOf(child); have = charsOf([...learnedBefore(j.day), ...(j.lesson ? j.lesson.items : []), ...(U.items || [])]); } catch { have = charsOf(U.items || []); }
+  const okWords = (U.words || []).filter((w) => canWrite(w, have));
+  if (okWords.length) {
     const last = pages[pages.length - 1];
-    if (room(last, 260)) { section(last, "Words to write"); for (const w of U.words.slice(0, 2)) traceRow(last, w, strokeLib[voiceKey(w)]); }
+    if (room(last, 260)) { section(last, "Words to write"); for (const w of okWords.slice(0, 2)) traceRow(last, w, strokeLib[voiceKey(w)]); }
   }
 
   // ---- Page: find the letters, and a second tracing round (more practice for the week) ----
@@ -224,7 +228,8 @@ export async function packetPdf({ child, pk, strokeLib = {}, school, easy = fals
   // ---- Page: words of the week (picture, word, trace, copy) ----
   if (pk.theme) {
     const p = newPage(); pages.push(p);
-    p.meta = { title: `Words of the week: ${pk.theme.en}`, sub: `${pk.theme.kn} · say each word, trace it, then write it on the line.` };
+    const anyWrite = pk.theme.words.slice(0, 6).some(([kn]) => canWrite(kn, have));
+    p.meta = { title: `Words of the week: ${pk.theme.en}`, sub: anyWrite ? `${pk.theme.kn} · say each word, trace it, then write it on the line.` : `${pk.theme.kn} · say each word out loud. Trace the letter you know, and circle it in the word.` };
     p.y = 290;
     const g = p.g;
     section(p, "Look, say, trace and write");
@@ -236,10 +241,21 @@ export async function packetPdf({ child, pk, strokeLib = {}, school, easy = fals
       g.font = `110px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`; g.textBaseline = "middle"; g.textAlign = "center";
       g.fillStyle = INK; g.fillText(pic, M + 90, y + (rowH - 16) / 2 + 4); g.textAlign = "left";
       g.font = KN(58); g.fillStyle = DEEP; g.fillText(kn, M + 190, y + 62);
-      g.font = KN(58); g.fillStyle = "#e3dccd"; g.fillText(kn, M + 190 + Math.max(260, g.measureText(kn).width + 60), y + 62);
+      const writable = canWrite(kn, have);
+      let first = firstLetter(kn); if (!canWrite(first, have)) first = [...kn][0];
+      const gx = M + 190 + Math.max(260, g.measureText(kn).width + 60);
+      if (writable) {
+        g.font = KN(58); g.fillStyle = "#e3dccd"; g.fillText(kn, gx, y + 62);
+      } else if (canWrite(first, have)) {
+        // not all its letters are taught yet: trace just the first one
+        g.font = KN(58); g.fillStyle = "#e3dccd"; g.fillText(first, gx, y + 62);
+        g.textBaseline = "alphabetic"; g.fillStyle = MUTE; g.font = EN(20, 700); g.fillText(`starts with ${first}`, gx, y + 128); g.textBaseline = "middle";
+      }
       g.textBaseline = "alphabetic"; g.fillStyle = MUTE; g.font = EN(22, 700); g.fillText(`${rom} · ${en}`, M + 190, y + 128);
-      g.strokeStyle = LINE; g.beginPath(); g.moveTo(M + 700, y + 140); g.lineTo(PW - M - 24, y + 140); g.stroke();
-      g.setLineDash([6, 6]); g.strokeStyle = "#eadcb8"; g.beginPath(); g.moveTo(M + 700, y + 100); g.lineTo(PW - M - 24, y + 100); g.stroke(); g.setLineDash([]);
+      if (writable) {
+        g.strokeStyle = LINE; g.beginPath(); g.moveTo(M + 700, y + 140); g.lineTo(PW - M - 24, y + 140); g.stroke();
+        g.setLineDash([6, 6]); g.strokeStyle = "#eadcb8"; g.beginPath(); g.moveTo(M + 700, y + 100); g.lineTo(PW - M - 24, y + 100); g.stroke(); g.setLineDash([]);
+      }
       p.y += rowH;
     }
   }
@@ -495,7 +511,7 @@ export async function adultWorkbookPdf({ child = {}, units = [], levels = [], st
       "1.  Pick one phrase page a week. Stick it on the fridge or by the coffee machine.",
       "2.  Say each phrase out loud three times. Then use one on your partner or family that day, even if it's wrong. They will love it.",
       "3.  The grey line under each phrase tells you how to say it: aa = long a, ee = long e, T and D = tongue curled back.",
-      "4.  Letters are optional. When you're ready, trace one row a day with a pen. Start at the green dot and follow the red arrows.",
+      "4.  Letters are optional. When you're ready, trace one row a day with a pen. Where a letter has a green dot and arrows, follow them.",
       "5.  Hear every phrase in the app (tap the speaker), and record yourself to compare.",
     ]) p.y = wrap(g, t, M + 8, p.y + 10, PW - 2 * M - 16, 38) + 8;
     p.y += 20;
@@ -537,7 +553,7 @@ export async function adultWorkbookPdf({ child = {}, units = [], levels = [], st
     for (const [name, list] of [["Vowels  ಸ್ವರಗಳು", VOWELS], ["Consonants  ವ್ಯಂಜನಗಳು", CONSONANTS]]) {
       for (let s = 0; s < list.length; s += 6) {
         const p = newPage(); pages.push(p);
-        p.meta = { title: `Letters to trace: ${name.split("  ")[0].toLowerCase()}`, sub: "Start at the green dot, follow the red arrows, say the sound as you write." };
+        p.meta = { title: `Letters to trace: ${name.split("  ")[0].toLowerCase()}`, sub: "Trace over the dots and say the sound as you write. Follow the arrows where shown." };
         p.y = 290;
         section(p, s === 0 ? name : `${name} (continued)`);
         for (const t of list.slice(s, s + 6)) { if (!room(p, 190)) break; traceRow(p, t, strokeLib[voiceKey(t)], false); }

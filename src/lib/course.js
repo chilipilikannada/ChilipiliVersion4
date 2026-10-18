@@ -415,7 +415,7 @@ export function lesson(track, n, pace, opts = {}) {
         ? { title: "Read the sentences", steps: ["Read each model sentence aloud twice.", "Circle this week's letters or signs in them.", "Build the sentences in Gini's Build, then read them back."] }
         : { title: "Read and answer", steps: ["Read the model sentences as one short passage.", "Tell a grown-up what it says, in Kannada.", "Underline the joining or ending words that are this week's focus."] },
     writing: level === "start"
-      ? { title: "Trace, then write", steps: ["Watch and trace each letter in Gini's Write. Start at the green dot.", "Fill the tracing sheet: trace the light letters, then write alone.", "Copy one model sentence neatly."] }
+      ? { title: "Trace, then write", steps: ["Watch and trace each letter in Gini's Write, following the green dot and arrows where shown.", "Fill the tracing sheet: trace the light letters, then write alone.", "Copy one model sentence neatly."] }
       : level === "write"
         ? { title: "Write what you say", steps: ["Trace the letters in Gini's Write, then do the tracing sheet.", "Write the 3 built sentences on the lines.", pattern.prompts.write] }
         : { title: "Write longer", steps: ["Make a sentence longer, one step at a time, on the sentence page.", pattern.prompts.long, "Dictation: a grown-up reads the sentences aloud and you write them."] },
@@ -552,7 +552,7 @@ function storyPlan(l, day, { seed = 1 } = {}) {
   return plans[Math.max(0, Math.min(5, day - 1))];
 }
 
-export function dayPlan(l, day, { easy = false, review = [], seed = 1 } = {}) {
+export function dayPlan(l, day, { easy = false, review = [], seed = 1, writeWord = null } = {}) {
   if (l.track === "long") return storyPlan(l, day, { seed });
   const P = l.pattern, items = [...new Set([...(l.unit.items || []), ...(l.unit.review || [])])];
   const half = Math.ceil(items.length / 2);
@@ -601,7 +601,10 @@ export function dayPlan(l, day, { easy = false, review = [], seed = 1 } = {}) {
       { kind: "talk", title: "Answer Gini's questions", items: [...talk.slice(0, 3), picQ[2]].filter(Boolean) },
       { kind: "speak", title: long ? "Say the long sentence" : "Say the sentences", items: long ? P.ladder.slice(-2).map(([kn, en]) => ({ kn, en })) : model.slice(2, 4) },
       { kind: "build", title: long ? "Make it longer" : "More sentences", rounds: long ? P.ladder.slice(1).map(([kn, en], j) => ({ type: "longer", kn, en, prev: P.ladder[j][0] })) : [...extraBuild.slice(0, 2).map(([kn]) => ({ type: "order", kn, en: "Listen, then put the words in order" })), ...P.build.slice(2).map(([kn, en]) => ({ type: "order", kn, en }))] },
-      { kind: "write", title: `Write a word: ${th.en}`, items: (shortThemeWords.length ? shortThemeWords : (l.unit.words || P.words.map((w) => w[0]))).slice(0, 2), steps: easy ? ["trace"] : ["trace", "write"] },
+      writeWord ? (writeWord.kind === "words"
+        ? { kind: "write", title: writeWord.items.every((it) => tw.some((w) => w[0] === it)) ? `Write a word: ${th.en}` : "Write a word you can read", items: writeWord.items, steps: easy ? ["trace"] : ["trace", "write"] }
+        : { kind: "write", title: writeWord.kind === "first" ? `First letter: ${writeWord.from.map((x) => `${x.letter} as in ${x.word}`).join(", ")}` : "Trace your letters again", items: writeWord.kind === "first" ? writeWord.items : firstHalf, steps: easy ? ["trace"] : ["trace", "write"] })
+        : { kind: "write", title: `Write a word: ${th.en}`, items: (shortThemeWords.length ? shortThemeWords : (l.unit.words || P.words.map((w) => w[0]))).slice(0, 2), steps: easy ? ["trace"] : ["trace", "write"] },
     ],
     [
       { kind: "talk", title: "Tell Gini about your week", items: [daily[(seed + 3) % daily.length], talk[2] || talk[0]].filter(Boolean) },

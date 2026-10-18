@@ -15,8 +15,16 @@ service cloud.firestore {
     function kid()        { return signedIn() ? request.auth.token.get('kid', '') : ''; }
     function hasProfile() { return exists(/databases/$(database)/documents/users/$(request.auth.uid)); }
     function me()         { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
-    function isStaff()    { return signedIn() && hasProfile() && me().role in ['teacher', 'admin']; }
     function isAdmin()    { return signedIn() && hasProfile() && me().role == 'admin'; }
+    // Teachers and guides are added by the admin (staff/{email}). Each one sees only their own classes.
+    function staffPath()  { return /databases/$(database)/documents/staff/$(myEmail()); }
+    function isTeacher()  { return signedIn() && myEmail() != '' && exists(staffPath()) && get(staffPath()).data.get('active', true) == true; }
+    function myClasses()  { return get(staffPath()).data.get('classes', []); }
+    function isStaff()    { return isAdmin() || isTeacher(); }
+    // A teacher's own class: the document carries the class it belongs to.
+    function mine(d)      { return isTeacher() && d.get('classId', '') != '' && d.get('classId', '') in myClasses(); }
+    function canSee()     { return isAdmin() || mine(resource.data); }
+    function teachesChild(id) { return isAdmin() || mine(child(id)); }
     function child(id)    { return get(/databases/$(database)/documents/children/$(id)).data; }
     // The document belongs to one of my children.
     function listed()     { return signedIn() && ((myEmail() != '' && myEmail() in resource.data.parentEmails) || (kid() != '' && kid() == resource.data.get('childId', ''))); }
@@ -26,6 +34,17 @@ service cloud.firestore {
         && request.resource.data.parentEmails == child(request.resource.data.childId).parentEmails
         && ((myEmail() != '' && myEmail() in request.resource.data.parentEmails) || (kid() != '' && kid() == request.resource.data.childId));
     }
+    // Work and messages carry the child's class, so the right teacher (and only them) can see it.
+    function sameClass()  { return request.resource.data.get('classId', '') == child(request.resource.data.childId).get('classId', ''); }
+    function newLinked()  { return newListed() && sameClass(); }
+    // A class code a teacher shared: it must point to the class the family is joining.
+    function validClass() {
+      return request.resource.data.get('classId', '') == ''
+        || (request.resource.data.get('classCode', '') != ''
+            && exists(/databases/$(database)/documents/classCodes/$(request.resource.data.classCode))
+            && get(/databases/$(database)/documents/classCodes/$(request.resource.data.classCode)).data.classId == request.resource.data.classId);
+    }
+    function joinedClass() { return request.resource.data.get('classId', '') != '' && validClass(); }
     function onlyKeys(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function joinCode() { return get(/databases/$(database)/documents/settings/join).data.code; }
     // Open sign-up (the default): anyone signed in can add their child and start straight away.
@@ -36,7 +55,7 @@ service cloud.firestore {
 
     // ---- people ----
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if signedIn() && request.auth.uid == uid
                     && request.resource.data.email == myEmail()
                     && (request.resource.data.role == 'parent'
@@ -48,71 +67,88 @@ service cloud.firestore {
     match /settings/school { allow read: if true;      allow write: if isAdmin(); }
     match /settings/join   { allow read: if isStaff(); allow write: if isAdmin(); }
 
+    // ---- teachers, guides and their classes (the admin manages these) ----
+    match /staff/{email}       { allow read: if isAdmin() || (signedIn() && myEmail() == email); allow write: if isAdmin(); }
+    match /classes/{id}        { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /classCodes/{code}   { allow get: if signedIn(); allow list: if isAdmin(); allow write: if isAdmin(); }
+
     // ---- children ----
     match /children/{id} {
-      allow read: if isStaff() || listed() || (kid() != '' && kid() == id);
+      allow read: if canSee() || listed() || (kid() != '' && kid() == id);
       // A parent adds their own child. With open sign-up, or the right class code, the child starts straight away.
-      allow create: if isStaff()
-                    || (signedIn() && myEmail() != ''
+      allow create: if isAdmin()
+                    || (signedIn() && myEmail() != '' && validClass()
                         && request.resource.data.parentEmails == [myEmail()]
                         && request.resource.data.consentAt is number
                         && request.resource.data.name is string && request.resource.data.name.size() <= 80
                         && request.resource.data.stars == 0
                         && (request.resource.data.status == 'pending'
                             || (request.resource.data.status == 'active' && openSignup())
+                            || (request.resource.data.status == 'active' && joinedClass())
                             || (request.resource.data.status == 'active'
                                 && exists(/databases/$(database)/documents/settings/join)
                                 && joinCode() is string && joinCode().size() >= 4
                                 && request.resource.data.joinCode == joinCode())));
       // Families can update stars and progress from the kids' space, the path, and the child's name and age.
-      allow update: if isStaff()
-                    || (listed() && onlyKeys(['kidCode', 'stars', 'streak', 'weekDone', 'lastActive', 'letters', 'spoken', 'journey', 'ahead', 'track', 'pace', 'level', 'levelBy', 'levelAt', 'easyTrace', 'adultDone', 'name', 'age', 'starsWeek', 'leaderboard']))
+      allow update: if isAdmin()
+                    || (mine(resource.data) && request.resource.data.get('classId', '') == resource.data.get('classId', ''))
+                    || (listed() && validClass() && onlyKeys(['classId', 'classCode', 'kidCode', 'stars', 'streak', 'weekDone', 'lastActive', 'letters', 'spoken', 'journey', 'ahead', 'track', 'pace', 'level', 'levelBy', 'levelAt', 'easyTrace', 'adultDone', 'name', 'age', 'starsWeek', 'leaderboard']))
                     || (kid() != '' && kid() == id && onlyKeys(['stars', 'streak', 'weekDone', 'lastActive', 'letters', 'spoken', 'journey', 'ahead', 'track', 'pace', 'level', 'levelBy', 'levelAt', 'easyTrace', 'adultDone', 'starsWeek']));
       allow delete: if isAdmin();
     }
 
     // ---- learning activity, hand-ins, progress ----
-    match /activity/{id}    { allow read: if isStaff() || listed(); allow create: if isStaff() || newListed(); }
+    match /activity/{id}    { allow read: if canSee() || listed(); allow create: if (teachesChild(request.resource.data.childId) && sameClass()) || newLinked(); }
     match /submissions/{id} {
-      allow read: if isStaff() || listed();
-      allow create: if newListed() && request.resource.data.status == 'sent';
-      allow update: if isStaff();
+      allow read: if canSee() || listed();
+      allow create: if newLinked() && request.resource.data.status == 'sent';
+      allow update: if canSee();
       allow delete: if isAdmin();
     }
-    match /stageLogs/{id}   { allow read: if isStaff() || listed(); allow write: if isStaff(); }
+    match /stageLogs/{id}   { allow read: if canSee() || listed(); allow create, update: if teachesChild(request.resource.data.childId) && sameClass(); allow delete: if isAdmin(); }
 
     // ---- month-end meets ----
-    match /meets/{id}       { allow read: if signedIn(); allow write: if isStaff(); }
+    // A teacher's meets and posts belong to one of their classes; the admin's are for everyone.
+    match /meets/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || (isTeacher() && request.resource.data.get('classId', '') in myClasses());
+      allow delete: if isAdmin() || mine(resource.data);
+    }
     match /meetNotes/{id} {
-      allow read: if isStaff() || listed();
-      allow create: if isStaff()
-                    || (newListed() && request.resource.data.keys().hasOnly(['childId', 'parentEmails', 'month', 'parentNote', 'at']));
-      allow update: if isStaff() || (listed() && onlyKeys(['parentNote']));
+      allow read: if canSee() || listed();
+      allow create: if (teachesChild(request.resource.data.childId) && sameClass())
+                    || (newLinked() && request.resource.data.keys().hasOnly(['childId', 'parentEmails', 'month', 'parentNote', 'at', 'classId']));
+      allow update: if teachesChild(resource.data.childId) || (listed() && onlyKeys(['parentNote']));
     }
 
     // ---- messages, class feed, the teacher's voice ----
     match /messages/{id} {
-      allow read: if isStaff() || listed();
-      allow create: if (isStaff() || newListed())
+      allow read: if canSee() || listed();
+      allow create: if ((teachesChild(request.resource.data.childId) && sameClass()) || newLinked())
                     && request.resource.data.from == request.auth.uid
                     && request.resource.data.text is string && request.resource.data.text.size() <= 1000;
     }
-    match /posts/{id} { allow read: if signedIn(); allow write: if isStaff(); }
-    match /voice/{id} { allow read: if signedIn(); allow write: if isStaff(); }
+    match /posts/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || (isTeacher() && request.resource.data.get('classId', '') in myClasses());
+      allow delete: if isAdmin() || mine(resource.data);
+    }
+    // One reference voice and handwriting for everyone: only the admin records them.
+    match /voice/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     // The teacher's handwriting (stroke order) and their own worksheets for packet weeks
     // Phrases a child wanted to say (Say it in Kannada): the family and teachers can read them.
     match /phrases/{id} {
-      allow read: if isStaff() || listed();
-      allow create: if (isStaff() || newListed()) && request.resource.data.en is string && request.resource.data.en.size() <= 300;
-      allow delete: if isStaff();
+      allow read: if canSee() || listed();
+      allow create: if ((teachesChild(request.resource.data.childId) && sameClass()) || newLinked()) && request.resource.data.en is string && request.resource.data.en.size() <= 300;
+      allow delete: if canSee();
     }
     // Kid sign-in codes: the family creates and removes them; only the server reads them.
     match /kidCodes/{code} {
       allow read: if false;
-      allow create: if (isStaff() || (newListed() && myEmail() != '')) && request.resource.data.keys().hasOnly(['childId', 'parentEmails', 'at']);
-      allow delete: if isStaff() || (signedIn() && myEmail() != '' && myEmail() in resource.data.parentEmails);
+      allow create: if (isAdmin() || (newListed() && myEmail() != '')) && request.resource.data.keys().hasOnly(['childId', 'parentEmails', 'at']);
+      allow delete: if isAdmin() || (signedIn() && myEmail() != '' && myEmail() in resource.data.parentEmails);
     }
-    match /strokes/{id}     { allow read: if signedIn(); allow write: if isStaff(); }
-    match /packetFiles/{id} { allow read: if signedIn(); allow write: if isStaff(); }
+    match /strokes/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /packetFiles/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
   }
 }

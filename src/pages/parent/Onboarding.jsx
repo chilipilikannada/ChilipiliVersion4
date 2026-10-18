@@ -44,7 +44,12 @@ export default function Onboarding({ first, onDone }) {
     const open = school.openSignup !== false;
     let id = null, active = false;
     try {
-      if (open) {
+      // A teacher's class code: the learner joins that class (and its teacher) and starts straight away.
+      let cls = null;
+      if (code) { try { const cc = await store.get("classCodes", code); if (cc && cc.classId) cls = { classId: cc.classId, classCode: code }; } catch {} }
+      if (cls) {
+        id = await store.add("children", { ...base, ...cls, status: "active", startDate: isoLocal() }); active = true;
+      } else if (open) {
         id = await store.add("children", { ...base, status: "active", startDate: isoLocal() }); active = true;
       } else if (code) {
         if (store.mode === "device") {
@@ -60,8 +65,9 @@ export default function Onboarding({ first, onDone }) {
       if (!adult) { try { pin = await makeKidCode({ id, parentEmails: base.parentEmails }); } catch {} }
       const sent = await Promise.race([notifyServer({ type: "registration", childId: id }), new Promise((r) => setTimeout(r, 6000))]);
       const emailed = !!(sent && sent.parent && sent.parent.sent);
-      if (adult) say(active ? `Welcome, ${who}! Your first lesson is ready.` : code ? "That class code didn't match, so we've asked the teacher to approve." : "Sent to the teacher to approve. Your lessons open as soon as they do.");
-      else say(active ? `Welcome, ${who}! Week 1 is ready.${pin ? ` ${who}'s number for "Kid's corner" is ${pin}.` : ""}${emailed ? " We've emailed it to you too." : ""}` : code ? "That class code didn't match, so we've asked the teacher to approve." : "Sent to the teacher to approve. You'll see week 1 as soon as they do.");
+      if (code && open && !cls) say("That class code wasn't found, so you're self-paced for now. You can join a class later from the Profile tab.", true);
+      else if (adult) say(active ? `Welcome, ${who}! Your first lesson is ready.` : code ? "That class code didn't match, so we've asked the teacher to approve." : "Sent to the teacher to approve. Your lessons open as soon as they do.");
+      if (!(code && open && !cls) && !adult) say(active ? `Welcome, ${who}! Week 1 is ready.${pin ? ` ${who}'s number for "Kid's corner" is ${pin}.` : ""}${emailed ? " We've emailed it to you too." : ""}` : code ? "That class code didn't match, so we've asked the teacher to approve." : "Sent to the teacher to approve. You'll see week 1 as soon as they do.");
       onDone(id);
     } catch (e) { say(friendlyError(e), true); }
   }
@@ -132,10 +138,10 @@ export default function Onboarding({ first, onDone }) {
       <div className="row"><Btn kind="ghost" icon={ArrowLeft} onClick={() => setStep(1)}>Back</Btn><Btn kind="primary" icon={ArrowRight} onClick={() => setStep(3)}>Next</Btn></div>
     </div>,
     <div className="stack" key="2">
-      <h1 style={{ fontSize: 28 }}>{school.groups.length > 1 || school.openSignup === false ? "Join your class" : "Almost done"}</h1>
+      <h1 style={{ fontSize: 28 }}>Almost done</h1>
       {school.groups.length > 1 && <div className="field"><label htmlFor="cg">Group</label><select id="cg" value={f.group} onChange={(e) => set("group", e.target.value)}>{school.groups.map((g) => <option key={g}>{g}</option>)}</select></div>}
-      {school.openSignup === false && <div className="field"><label htmlFor="cc">Class code</label><input id="cc" value={f.code} onChange={(e) => set("code", e.target.value)} placeholder="From your teacher" autoCapitalize="characters" autoComplete="off" /><span className="hint">With the code, {nm} starts today. Without it, the teacher approves you first.</span></div>}
-      {school.openSignup !== false && <p className="muted">{nm} starts today at the level you chose. Your teacher gets a note and will confirm {nm}'s level at the first month-end meet.</p>}
+      <div className="field"><label htmlFor="cc">Class code {school.openSignup !== false && <span className="muted">(optional)</span>}</label><input id="cc" value={f.code} onChange={(e) => set("code", e.target.value)} placeholder="From a teacher, if you have one" autoCapitalize="characters" autoComplete="off" /><span className="hint">{school.openSignup !== false ? `With a code, ${nm} joins that teacher's class. Without one, ${nm} learns at their own pace with Gini.` : `With the code, ${nm} starts today. Without it, the teacher approves you first.`}</span></div>
+      {school.openSignup !== false && <p className="muted">{nm} starts today at the level you chose.</p>}
       <label className="check"><input type="checkbox" checked={f.consent} onChange={(e) => set("consent", e.target.checked)} /><span>I'm {nm}'s parent or guardian. I agree that {school.schoolName} keeps {nm}'s progress, photos and recordings to teach and report progress, and deletes them when I ask.</span></label>
       <div className="row"><Btn kind="ghost" icon={ArrowLeft} onClick={() => setStep(2)}>Back</Btn><Btn kind="primary" onClick={create}>Start learning</Btn></div>
     </div>,
@@ -180,7 +186,7 @@ export default function Onboarding({ first, onDone }) {
     <div className="stack" key="a3">
       <h1 style={{ fontSize: 28 }}>{school.groups.length > 1 || school.openSignup === false ? "Join the class" : "Almost done"}</h1>
       {school.groups.length > 1 && <div className="field"><label htmlFor="ag">Group</label><select id="ag" value={f.group} onChange={(e) => set("group", e.target.value)}>{school.groups.map((g) => <option key={g}>{g}</option>)}</select></div>}
-      {school.openSignup === false && <div className="field"><label htmlFor="acc">Class code</label><input id="acc" value={f.code} onChange={(e) => set("code", e.target.value)} placeholder="From your teacher" autoCapitalize="characters" autoComplete="off" /><span className="hint">With the code, you start today. Without it, the teacher approves you first.</span></div>}
+      <div className="field"><label htmlFor="acc">Class code {school.openSignup !== false && <span className="muted">(optional)</span>}</label><input id="acc" value={f.code} onChange={(e) => set("code", e.target.value)} placeholder="From a teacher, if you have one" autoCapitalize="characters" autoComplete="off" /><span className="hint">{school.openSignup !== false ? "With a code, you join that teacher's class. Without one, you learn at your own pace." : "With the code, you start today. Without it, the teacher approves you first."}</span></div>
       <label className="check"><input type="checkbox" checked={f.consent} onChange={(e) => set("consent", e.target.checked)} /><span>I agree that {school.schoolName} keeps my progress and recordings to teach me and reply, and deletes them when I ask.</span></label>
       <div className="row"><Btn kind="ghost" icon={ArrowLeft} onClick={() => setStep(2)}>Back</Btn><Btn kind="primary" onClick={createAdult}>Start learning</Btn></div>
     </div>,

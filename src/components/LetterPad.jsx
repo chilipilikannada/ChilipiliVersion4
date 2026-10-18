@@ -28,6 +28,8 @@ export default function LetterPad({ text, mode = "trace", record, onDone, onSave
 
   // The teacher's recording if there is one, otherwise a path worked out from the letter's shape.
   const model = useMemo(() => (L ? (record ? fitRecord(record, L) : null) || (mode !== "record" ? autoPath(L) : null) : null), [L, record, mode]);
+  // Only the teacher's own recording shows a direction. A path worked out from the shape is used just to place dots.
+  const guide = model && !model.auto ? model : null;
   const easyTrace = easy && mode === "trace";
   const TOL = easy ? 0.075 : 0.045;
   const [demo, setDemo] = useState(null); // 0..1 while Gini shows the way (easy tracing)
@@ -52,7 +54,7 @@ export default function LetterPad({ text, mode = "trace", record, onDone, onSave
     if (mode !== "write") drawGlyph(g, L, H, { fill: dots ? "#f4eddd" : GHOST });
     else if (shadow && !result) drawGlyph(g, L, H, { fill: "#f7f1e3" }); // a faint shadow for young writers
     else if (result) drawGlyph(g, L, H, { stroke: "#b9a47a", dash: [5, 5], width: 1.5 });
-    const ms = model && model.strokes;
+    const ms = guide && guide.strokes;
     const line = (s, color, width) => {
       if (!s.length) return;
       g.strokeStyle = color; g.lineWidth = width; g.lineCap = "round"; g.lineJoin = "round";
@@ -128,7 +130,7 @@ export default function LetterPad({ text, mode = "trace", record, onDone, onSave
         const { parts, tip } = walk(demo);
         parts.forEach((part) => line(part, "rgba(255,199,44,.85)", Math.max(10, H * 0.05)));
         finger(tip);
-      } else if (mode === "trace" && !result) {
+      } else if (mode === "trace" && !result && ms) {
         const nxt = on.findIndex((v) => !v);
         if (nxt >= 0) {
           const d = dots[nxt], pulse = 1.5 + 0.35 * Math.sin((performance.now() - t0.current) / 180);
@@ -150,7 +152,7 @@ export default function LetterPad({ text, mode = "trace", record, onDone, onSave
       if (k < ms.length) { arrow(ms[k], GREEN); badge(ms[k][0], k + 1, GREEN); }
     }
     if (!dots) for (const s of strokes.current) line(s, mode === "record" ? "#7a2e1b" : RED, Math.max(6, H * (mode === "write" ? 0.04 : 0.045)));
-  }, [L, H, Wpx, mode, model, prog, result, dots, demo, TOL, shadow]);
+  }, [L, H, Wpx, mode, model, guide, prog, result, dots, demo, TOL, shadow]);
 
   // Easy tracing: keep the next dot pulsing.
   const drawRef = useRef(draw); drawRef.current = draw;
@@ -164,23 +166,23 @@ export default function LetterPad({ text, mode = "trace", record, onDone, onSave
   const demoRaf = useRef(0);
   const showMe = useCallback(() => {
     cancelAnimationFrame(demoRaf.current);
-    if (!model || !model.strokes) return;
-    const start = performance.now(), dur = 900 + 900 * model.strokes.length;
+    if (!guide || !guide.strokes) return;
+    const start = performance.now(), dur = 900 + 900 * guide.strokes.length;
     const step = (t) => { const p = Math.min(1, (t - start) / dur); setDemo(p); if (p < 1) demoRaf.current = requestAnimationFrame(step); else setTimeout(() => setDemo(null), 350); };
     demoRaf.current = requestAnimationFrame(step);
-  }, [model]);
-  useEffect(() => { if (easyTrace && L && model) showMe(); return () => cancelAnimationFrame(demoRaf.current); }, [easyTrace, L, model, showMe]);
+  }, [guide]);
+  useEffect(() => { if (easyTrace && L && guide) showMe(); return () => cancelAnimationFrame(demoRaf.current); }, [easyTrace, L, guide, showMe]);
 
   useEffect(() => { draw(); }, [draw, n]);
 
   // Watch: animate the teacher's strokes.
   const play = useCallback(() => {
     cancelAnimationFrame(raf.current);
-    if (!model || !model.strokes) { setProg(1); return; }
-    const t0 = performance.now(), dur = 900 + 700 * model.strokes.length;
+    if (!guide || !guide.strokes) { setProg(1); return; }
+    const t0 = performance.now(), dur = 900 + 700 * guide.strokes.length;
     const step = (t) => { const p = Math.min(1, (t - t0) / dur); setProg(p); if (p < 1) raf.current = requestAnimationFrame(step); };
     raf.current = requestAnimationFrame(step);
-  }, [model]);
+  }, [guide]);
   useEffect(() => { if (mode === "watch" && L) play(); return () => cancelAnimationFrame(raf.current); }, [mode, L, play]);
 
   const at = (e) => { const r = cv.current.getBoundingClientRect(); return [(e.clientX - r.left) / H, (e.clientY - r.top) / H]; };
@@ -228,13 +230,13 @@ export default function LetterPad({ text, mode = "trace", record, onDone, onSave
       </div>
       {mode === "watch" && (
         <div className="row" style={{ justifyContent: "center" }}>
-          {model ? <button className="btn ghost small" onClick={play}><Play size={18} /> Watch again</button>
-            : <p className="small muted" style={{ textAlign: "center", margin: 0 }}>Look at the shape carefully. Your teacher will add how to write it soon.</p>}
+          {guide ? <button className="btn ghost small" onClick={play}><Play size={18} /> Watch again</button>
+            : <p className="small muted" style={{ textAlign: "center", margin: 0 }}>Look at the shape carefully, then trace it over the dots.</p>}
         </div>
       )}
       {mode !== "watch" && (
         <>
-          {easyTrace && !result && model && <div className="row" style={{ justifyContent: "center" }}><button className="btn ghost small" onClick={showMe}><Play size={18} /> Show me</button></div>}
+          {easyTrace && !result && guide && <div className="row" style={{ justifyContent: "center" }}><button className="btn ghost small" onClick={showMe}><Play size={18} /> Show me</button></div>}
           {dots && mode === "trace" && !result && <div className="dot-meter" aria-label={`${Math.round(lit * 100)}% of dots`}><i style={{ width: `${Math.round(lit * 100)}%` }} /></div>}
           {result && mode !== "record" && result.stars >= 2 && <Confetti n={30} />}
           {result && mode !== "record" && (

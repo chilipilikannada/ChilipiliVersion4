@@ -10,8 +10,8 @@ import { calendarICS, saveFile } from "../../lib/files.js";
 import { friendlyError } from "../../App.jsx";
 
 export const meetState = (x) => { const t = Date.now(), s = x.startAt, e = s + (x.duration || 60) * 60e3; return t >= s - 15 * 60e3 && t <= e ? "open" : t < s ? "soon" : "ended"; };
-export const meetsFor = (meets, group) => meets.filter((x) => x.status !== "cancelled" && (x.group === group || x.group === "All groups")).sort((a, b) => a.startAt - b.startAt);
-export const nextMeet = (meets, group) => meetsFor(meets, group).find((x) => meetState(x) !== "ended") || null;
+export const meetsFor = (meets, group, classId = "") => meets.filter((x) => x.status !== "cancelled" && (x.classId ? x.classId === classId : (x.group === group || x.group === "All groups"))).sort((a, b) => a.startAt - b.startAt);
+export const nextMeet = (meets, group, classId) => meetsFor(meets, group, classId).find((x) => meetState(x) !== "ended") || null;
 export const meetWhere = (x, school) => (x.mode === "online" ? "Online video meet" : x.location || school.venue || "In person");
 export const GOING = { easy: "Going well", ok: "Mostly fine", hard: "Finding it hard" };
 
@@ -19,7 +19,7 @@ export default function Meets({ fam }) {
   const { child, meets, notes } = fam;
   const { school, say, profile } = useApp();
   const nm = firstName(child.name);
-  const list = meetsFor(meets, child.group);
+  const list = meetsFor(meets, child.group, child.classId);
   const next = list.find((x) => meetState(x) !== "ended");
   const m = childMonth(child);
   const mine = notes.filter((n) => n.childId === child.id);

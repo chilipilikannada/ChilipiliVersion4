@@ -18,8 +18,11 @@ export default async function handler(req, res) {
       const child = await fsGet(`children/${encodeURIComponent(String(body.childId || ""))}`, me.token);
       if (!child || !(child.parentEmails || []).includes(me.email)) return res.status(403).json({ error: "Not your child" });
       if (Date.now() - (child.createdAt || 0) > 10 * 60e3) return res.status(200).json({ skipped: "old registration" });
+      // A family who joined a class: that class's teachers hear about it too.
+      let classTeachers = [];
+      if (child.classId) { try { const cls = await fsGet(`classes/${encodeURIComponent(child.classId)}`, me.token); classTeachers = (cls && cls.teacherEmails) || []; } catch {} }
       const [teacher, parent] = await Promise.all([
-        sendEmail({ subject: child.adult ? `New grown-up learner: ${child.name} joined ${name}` : `New family: ${child.name} (age ${child.age}) joined ${name}`, html: registrationHTML({ child, parentName: me.name, parentEmail: me.email, appUrl: APP_URL, schoolName: name }) }).catch((e) => ({ error: String(e.message || e) })),
+        sendEmail({ to: classTeachers.length ? [...new Set([...TEACHER_EMAILS, ...classTeachers])] : undefined, subject: child.adult ? `New grown-up learner: ${child.name} joined ${name}` : `New family: ${child.name} (age ${child.age}) joined ${name}`, html: registrationHTML({ child, parentName: me.name, parentEmail: me.email, appUrl: APP_URL, schoolName: name }) }).catch((e) => ({ error: String(e.message || e) })),
         sendEmail({ to: child.parentEmails, subject: child.adult ? `Welcome to ${name}, ${String(child.name).split(" ")[0]}! Your first Kannada lesson` : `Welcome to ${name}! ${String(child.name).split(" ")[0]}'s number is ${child.kidCode || "on your Home page"}`, html: parentWelcomeHTML({ child, appUrl: APP_URL, schoolName: name }) }).catch((e) => ({ error: String(e.message || e) })),
       ]);
       return res.status(200).json({ teacher, parent });

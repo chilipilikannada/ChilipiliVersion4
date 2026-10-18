@@ -15,6 +15,25 @@ export function useWatch(col, filters = []) {
   return [state.rows, state.loading];
 }
 
+// Rows whose field equals any of several values (one live query each, merged). values === null means everything.
+export function useWatchAny(col, field, values) {
+  const key = values === null ? "*" : JSON.stringify([...values].sort());
+  const [state, setState] = useState({ rows: [], loading: true });
+  useEffect(() => {
+    if (values === null) {
+      const un = store.watch(col, [], (rows) => setState({ rows, loading: false }), () => setState({ rows: [], loading: false }));
+      return () => un && un();
+    }
+    if (!values.length) { setState({ rows: [], loading: false }); return; }
+    const parts = new Map();
+    const emit = () => { const all = new Map(); for (const rs of parts.values()) for (const r of rs) all.set(r.id, r); setState({ rows: [...all.values()], loading: parts.size < values.length }); };
+    const uns = values.map((v) => store.watch(col, [[field, "==", v]], (rows) => { parts.set(v, rows); emit(); }, () => { parts.set(v, []); emit(); }));
+    return () => uns.forEach((u) => u && u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [col, field, key]);
+  return [state.rows, state.loading];
+}
+
 export function useDoc(col, id) {
   const [d, setD] = useState(undefined);
   useEffect(() => {

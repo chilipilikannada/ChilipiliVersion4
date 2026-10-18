@@ -49,9 +49,9 @@ export default function Home({ fam }) {
   const T = TRACKS[pk.track];
   const handedIn = subs.some((s) => s.childId === child.id && s.week === w && s.kind === "packet");
   const lastReply = subs.filter((s) => s.childId === child.id && s.status === "reviewed").sort((a, b) => (b.reviewedAt || 0) - (a.reviewedAt || 0))[0];
-  const nm2 = nextMeet(meets, child.group);
+  const nm2 = nextMeet(meets, child.group, child.classId);
   const done = (child.weekDone || {})[w] || {};
-  const feed = [...posts].sort((a, b) => b.at - a.at).slice(0, 3);
+  const feed = [...posts].filter((p) => !p.classId || p.classId === child.classId).sort((a, b) => b.at - a.at).slice(0, 3);
 
   return (
     <div className="stack">

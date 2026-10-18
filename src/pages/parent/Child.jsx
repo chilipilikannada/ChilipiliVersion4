@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LogOut, UserPlus, Trash2 } from "lucide-react";
-import { useApp, firstName } from "../../lib/hooks.js";
+import { useApp, useDoc, firstName } from "../../lib/hooks.js";
 import { store } from "../../lib/store/index.js";
 import { Avatar, Ladder, Btn, StageChip } from "../../components/ui.jsx";
 import { SKILLS, SKILL, STAGES } from "../../lib/content.js";
@@ -41,6 +41,7 @@ export default function ChildPage({ fam }) {
           {adult ? <span className="stat">{UNITS.filter((u) => doneUnits(child)[u.id]).length} of {UNITS.length} lessons</span> : <span className="stat">{handins} packets handed in</span>}
         </div>}
       </div>
+      {child.status === "active" && <ClassCard child={child} nm={nm} />}
       {!adult && <div className="card">
         <h3>Where {nm} is, and the 6-month goal</h3>
         <Ladder now={child.stages} goal={child.goals} />
@@ -97,4 +98,44 @@ export default function ChildPage({ fam }) {
 export function ResetDevice() {
   const [armed, setArmed] = useState(false);
   return <button className="btn quiet small" onClick={() => (armed ? store.reset() : setArmed(true))}><Trash2 size={16} /> {armed ? "Tap again to erase everything on this device" : "Start over on this device"}</button>;
+}
+
+// A teacher's class: join with the code they shared, or learn at your own pace.
+function ClassCard({ child, nm }) {
+  const { say } = useApp();
+  const cls = useDoc("classes", child.classId || null);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function join() {
+    const c = code.trim().toUpperCase().replace(/\s+/g, "");
+    if (c.length < 4) return say("Type the class code from the teacher.", true);
+    setBusy(true);
+    try {
+      const cc = await store.get("classCodes", c);
+      if (!cc || !cc.classId) { say("That class code wasn't found. Check it with the teacher.", true); return; }
+      await store.update("children", child.id, { classId: cc.classId, classCode: c });
+      setCode(""); say("Joined the class. New work now goes to that teacher.");
+    } catch (e) { say(friendlyError(e), true); } finally { setBusy(false); }
+  }
+  async function leave() {
+    if (!confirm("Leave this class? The app keeps working at your own pace.")) return;
+    try { await store.update("children", child.id, { classId: "", classCode: "" }); say("Left the class. Learning at your own pace now."); } catch (e) { say(friendlyError(e), true); }
+  }
+  return (
+    <div className="card">
+      <h3 style={{ margin: 0 }}>Class and teacher</h3>
+      {child.classId ? (
+        <>
+          <p style={{ margin: 0 }}><b>{cls ? cls.name : "Your class"}</b>{cls && cls.region ? <span className="muted"> · {cls.region}</span> : null}</p>
+          <p className="small muted" style={{ margin: 0 }}>Packets {nm === "you" ? "you hand" : "handed"} in, messages and meets go to this class's teacher.</p>
+          <div><button className="btn quiet small" onClick={leave}>Leave the class</button></div>
+        </>
+      ) : (
+        <>
+          <p className="small muted" style={{ margin: 0 }}>{nm === "you" ? "You're" : `${nm} is`} learning at {nm === "you" ? "your" : "their"} own pace with Gini. Got a class code from a teacher? Join their class here.</p>
+          <div className="row"><input className="input" style={{ maxWidth: 200 }} value={code} onChange={(e) => setCode(e.target.value)} placeholder="Class code" autoCapitalize="characters" autoComplete="off" /><button className="btn primary small" disabled={busy} onClick={join}>Join</button></div>
+        </>
+      )}
+    </div>
+  );
 }

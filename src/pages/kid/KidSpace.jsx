@@ -29,6 +29,8 @@ import { Confetti, TodayStrip, BadgeGrid, NewBadgePop } from "../../components/F
 import ComingSoon, { SoonPill } from "../../components/ComingSoon.jsx";
 import { FEATURES } from "../../lib/config.js";
 import GrownupGate from "../../components/GrownupGate.jsx";
+import { charsOf, writeTargets } from "../../lib/writable.js";
+import { KarnatakaTrail, PlaceCard, NewPlacePop, StickerBook } from "../../components/Journey.jsx";
 import { PackList, PackView, GiniChat, ChatPicker } from "../../components/Packs.jsx";
 import { packById } from "../../lib/packs.js";
 import { chirp, isQuiet, setQuiet } from "../../lib/chirp.js";
@@ -109,6 +111,8 @@ export default function KidSpace({ fam }) {
   else if (sub === "chat" && !FEATURES.gini) page = <><Head back={back} title="Talk with Gini" kn="ಗಿಣಿ ಜೊತೆ ಮಾತು" /><ComingSoon feature="gini" onBack={back} /></>;
   else if (sub === "say") page = <><Head back={back} title="Talk both ways" kn="ಮಾತಿನ ಸೇತುವೆ" /><SayIt child={child} profile={profile} voiceLib={voiceLib} kid onSaid={() => earn("say", 1)} /></>;
   else if (sub === "stars") page = <Stars {...props} />;
+  else if (sub === "stickers") page = <><Head back={back} title="My stickers" kn="ನನ್ನ ಸ್ಟಿಕ್ಕರ್" /><StickerBook child={child} voiceLib={voiceLib} /></>;
+  else if (sub === "word") page = <><Head back={back} title="Word of the day" kn="ಇಂದಿನ ಪದ" /><WordOfDay child={child} voiceLib={voiceLib} earn={earn} /></>;
   else if (sub === "games") page = <Games {...props} doneWeek={doneWeek} />;
   else if (sub === "packs") { const pk = packById(route[2]); page = pk ? <><Head back={() => go("kid", "packs")} title="Real-life Kannada" kn="ನಿಜ ಜೀವನದ ಮಾತು" /><PackView key={pk.id} pack={pk} voiceLib={voiceLib} kid={!adult} earn={earn} /></> : <><Head back={back} title="Real-life Kannada" kn="ನಿಜ ಜೀವನದ ಮಾತು" /><PackList kid={!adult} onOpen={(x) => go("kid", "packs", x.id)} /></>; }
   else if (sub === "chat") { const pk = packById(route[2]); page = pk ? <GiniChat key={pk.id} pack={pk} voiceLib={voiceLib} kid={!adult} earn={earn} onBack={() => go("kid", "chat")} /> : <><Head back={back} title="Talk with Gini" kn="ಗಿಣಿ ಜೊತೆ ಮಾತು" /><div className="kid-card" style={{ gap: 6 }}><b>Who should Gini be today?</b><span className="small muted">Gini pretends to be someone. You answer in Kannada: tap an answer, speak, or type.</span></div><ChatPicker kid={!adult} onPick={(x) => go("kid", "chat", x.id)} /></>; }
@@ -175,7 +179,10 @@ const HearBtn = ({ text, lib, say, big }) => (
   <button className={big ? "big-round red" : "icon-btn hear"} onClick={async () => { const r = await playWord(text, lib); if (!r) say("This device has no voice for Kannada. Try Chrome or Edge, or ask a grown-up to read it with you!"); }} aria-label="Hear it"><Volume2 /></button>
 );
 
-/* ---------- Today's mission: 4 short steps ---------- */
+/* ---------- Today's mission: short bites ---------- */
+const biteKey = (child, week, day) => `bite-${child.id}-w${week}-d${day}`;
+const readBite = (k) => { try { return Number(localStorage.getItem(k)) || 0; } catch { return 0; } };
+const writeBite = (k, v) => { try { if (v) localStorage.setItem(k, String(v)); else localStorage.removeItem(k); } catch {} };
 function Mission(props) {
   const { child, wk, day, easy, back, earn, go } = props;
   const DAYS = daysFor(wk.track);
@@ -183,17 +190,38 @@ function Mission(props) {
     const j = journeyOf(child);
     const known = learnedBefore(j.day).slice(-6);
     const unit = { ...wk.packet.unit, items: j.lesson.items, review: known.slice(-2) };
-    return dayPlan({ ...wk.packet, unit }, day, { easy, review: reviewLessons(wk.track, wk.packet.n, paceOf(child)), seed: wk.week * 7 + day });
+    // Only words whose letters are already learnt get written; otherwise their first letter (ಅ as in ಅಮ್ಮ).
+    const have = charsOf([...learnedBefore(j.day), ...j.lesson.items]);
+    const pool = [...((wk.packet.theme && wk.packet.theme.words) || []).map((w) => w[0]), ...(j.lesson.reading || []).map((w) => w[0]), ...(j.lesson.words || []).map((w) => w[0])];
+    const writeWord = writeTargets(pool, have);
+    return dayPlan({ ...wk.packet, unit }, day, { easy, review: reviewLessons(wk.track, wk.packet.n, paceOf(child)), seed: wk.week * 7 + day, writeWord });
   }, [wk, day, easy, child]);
-  const [i, setI] = useState(0);
+  // Tiny bites: each step is a short bite with its own finish. Come back any time to the next one.
+  const key = biteKey(child, wk.week, day);
+  const [i, setI] = useState(() => Math.min(readBite(key), plan.length - 1));
   const [stars, setStars] = useState(0);
   const [done, setDone] = useState(false);
-  useEffect(() => { setI(0); setStars(0); setDone(false); }, [day]);
+  const [rest, setRest] = useState(false); // the "bite done" screen between steps
+  useEffect(() => { setI(Math.min(readBite(key), plan.length - 1)); setStars(0); setDone(false); setRest(false); }, [day]);
   const step = plan[Math.min(i, plan.length - 1)];
   function finish(s = 1) {
     const total = stars + s; setStars(total);
-    if (i + 1 < plan.length) { setI(i + 1); window.scrollTo({ top: 0 }); }
-    else { setDone(true); earn("day", 2, { dayDone: day }); }
+    if (i + 1 < plan.length) { writeBite(key, i + 1); setRest(true); chirp("happy"); window.scrollTo({ top: 0 }); }
+    else { writeBite(key, 0); setDone(true); earn("day", 2, { dayDone: day }); }
+  }
+  if (rest) {
+    const nx = plan[i + 1];
+    return (
+      <div className="kid-card celebrate bite-done">
+        <Confetti n={28} ms={1800} />
+        <Gini className="gini" mood="cheer" />
+        <h2><span className="kn">ಸೂಪರ್!</span> Bite {i + 1} done ⭐</h2>
+        <div className="bite-pips" aria-label={`${i + 1} of ${plan.length} bites`}>{plan.map((_, j) => <span key={j} className={j <= i ? "on" : ""}>{j <= i ? "⭐" : j + 1}</span>)}</div>
+        <p style={{ margin: 0 }}>Want another one?</p>
+        <button className="btn primary big-next" onClick={() => { setRest(false); setI(i + 1); }}>Next: {nx.title} <ArrowRight size={18} /></button>
+        <button className="btn ghost" onClick={back}>That's enough for now 🏠</button>
+      </div>
+    );
   }
   if (done) return (
     <div className="kid-card celebrate">
@@ -211,7 +239,7 @@ function Mission(props) {
   return (
     <>
       <div className="kid-back"><button className="icon-btn" style={{ background: "#fff" }} onClick={back} aria-label="Back"><ArrowLeft /></button>
-        <div><h2>{DAYS[day - 1].icon} Day {day}: {DAYS[day - 1].en}</h2><div className="small">Step {i + 1} of {plan.length}: <b>{step.title}</b></div></div></div>
+        <div><h2>{DAYS[day - 1].icon} Day {day}: {DAYS[day - 1].en}</h2><div className="small">Bite {i + 1} of {plan.length}: <b>{step.title}</b></div></div></div>
       <div className="mission-steps">{plan.map((s, j) => <span key={j} className={j < i ? "on" : j === i ? "now" : ""} />)}</div>
       {step.kind === "listen" ? <Listen key={i} {...cfg} cards={step.cards} /> :
         step.kind === "play" ? <PlayGame key={i} {...cfg} mode={step.mode} words={step.words} sentences={step.sentences} /> :
@@ -503,7 +531,7 @@ function WriteSteps({ child, strokeLib, voiceLib, earn, easy, items, steps, memo
       </div>
       <p style={{ textAlign: "center", margin: 0 }}>
         {mode === "watch" ? <>Watch how <b className="kn" style={{ fontSize: 26 }}>{sel}</b> is written</>
-          : mode === "trace" ? <>{easy ? "Follow the dots" : "Trace"} <b className="kn" style={{ fontSize: 26 }}>{sel}</b>. Start at the green dot!</>
+          : mode === "trace" ? <>{easy ? "Follow the dots" : "Trace"} <b className="kn" style={{ fontSize: 26 }}>{sel}</b>.{rec ? " Start at the green dot!" : ""}</>
             : memory ? <>Write <b>{SOUND[sel] ? `"${SOUND[sel]}"` : "the letter you hear"}</b> from memory</>
               : <>Now write <b className="kn" style={{ fontSize: 26 }}>{sel}</b> on your own</>}
         <span className="small muted" style={{ display: "block" }}>{memory ? "Tap the speaker to hear it." : hint}</span>
@@ -1423,45 +1451,56 @@ function KidHome({ child, wk, go, say, DAYS, daysDone, nextDay, voiceLib, earn, 
   const j = journeyOf(child);
   const fam = familyFor(wk.week), famDone = ((child.weekDone || {})[wk.week] || {}).family;
   const story = storyFor(wk.packet.n);
-  const lb = useLeaderboard();
-  const rank = lb && lb.weekRank ? lb.weekRank[child.id] : null;
-  const myWeek = child.starsWeek && child.starsWeek.k === mondayKey() ? child.starsWeek.n || 0 : 0;
+  const [place, setPlace] = useState(null);
+  const today = isoLocal();
+  const doneToday = (activity || []).filter((a) => a.childId === child.id && isoLocal(a.at) === today).length;
+  // Three things to choose from, never a to-do list. Any one makes Gini happy.
+  const third = [
+    { key: "story", pic: story.pic, title: "Story time", sub: story.en, cls: "t-story", go: () => go("kid", "stories", story.id) },
+    { key: "call", pic: fam.pic, title: `Talk to ${fam.who.split(" ")[0]}`, sub: famDone ? "Done ✓ Do it again?" : fam.en, cls: "t-call", go: () => go("kid", "family", fam.id) },
+    { key: "games", pic: "🎮", title: "Play a game", sub: "Words, sounds, puzzles", cls: "t-games", go: () => go("kid", "games") },
+  ][new Date().getDay() % 3];
+  const tiles = [
+    { key: "lesson", pic: nextDay ? DAYS[nextDay - 1].icon : "🏆", title: nextDay ? "Gini's lesson" : "Play again", sub: nextDay ? (readBite(biteKey(child, wk.week, nextDay)) ? `Bite ${readBite(biteKey(child, wk.week, nextDay)) + 1} · ${DAYS[nextDay - 1].en}` : `${DAYS[nextDay - 1].en} · short bites`) : "All done this week!", cls: "t-lesson", go: () => go("kid", "day", String(nextDay || 1)), done: !nextDay },
+    { key: "write", pic: "✍️", title: "Draw letters", sub: <span className="kn" style={{ fontSize: 22 }}>{j.lesson.items.slice(0, 3).join(" ")}</span>, cls: "t-write", go: () => go("kid", "journey", String(j.finished ? JOURNEY_DAYS : j.day)) },
+    third,
+  ];
   return (
     <>
-      <div className="kid-hello">
+      <div className="kid-hello compact">
         <Gini className="gini" mood="cheer" />
         <div className="bubble">
           <h1><span className="kn">ನಮಸ್ಕಾರ</span> {nm}!</h1>
-          <p>{wk.meet ? "It's show-and-tell week! 🎤" : "What shall we do today?"}</p>
-          {FEATURES.gini && <button className="btn yellow small chat-me" onClick={() => go("kid", "chat")}>🦜 Chat with me!</button>}
+          <p>{wk.meet ? "It's show-and-tell week! 🎤" : doneToday ? (doneToday >= 3 ? "You're a star today! Anything more is a bonus 🌟" : "Yay! Want to do another one?") : "Pick one. Anything you like!"}</p>
+          <div className="today-dots" aria-label={`${Math.min(doneToday, 3)} of 3 today`}>{[0, 1, 2].map((i) => <i key={i} className={i < doneToday ? "on" : ""}>{i < doneToday ? "★" : ""}</i>)}</div>
         </div>
       </div>
       <NewBadgePop child={child} />
-      <TodayStrip child={child} activity={activity} />
-      <button className="mission-card" onClick={() => go("kid", "day", String(nextDay || 1))}>
-        <div className="mc-top"><span className="label" style={{ color: "#fff" }}>Today's mission</span><span className="mc-mins">15 min</span></div>
-        {nextDay ? <b className="mc-title">{DAYS[nextDay - 1].icon} {DAYS[nextDay - 1].en}</b> : <b className="mc-title">🏆 All done this week!</b>}
-        <div className="mc-days" aria-label={`${daysDone.filter(Boolean).length} of 6 days done`}>{daysDone.map((d, i) => <span key={i} className={d ? "on" : i + 1 === nextDay ? "now" : ""}>{d ? "★" : i + 1}</span>)}</div>
-        <span className="btn yellow mc-go">{nextDay ? "Let's go!" : "Play again"} <ArrowRight size={18} /></span>
-      </button>
+      <NewPlacePop child={child} voiceLib={voiceLib} />
+      <KarnatakaTrail child={child} onOpen={setPlace} onBook={() => go("kid", "stickers")} />
+      {place && <PlaceCard place={place} voiceLib={voiceLib} onClose={() => setPlace(null)} />}
+      <div className="pick-head"><b>What shall we do?</b></div>
+      <div className="pick3">
+        {tiles.map((t) => (
+          <button key={t.key} className={`pick ${t.cls}`} onClick={t.go}>
+            <span className="pick-pic" aria-hidden="true">{t.pic}</span>
+            <b>{t.title}</b><small>{t.sub}</small>
+          </button>
+        ))}
+      </div>
       {!nextDay && wk.week < PLAN_WEEKS && (
         <button className="btn primary" style={{ justifySelf: "stretch" }} onClick={async () => {
           let step = 1; while (isMeetWeek(wk.week + step) && wk.week + step < PLAN_WEEKS) step++;
           await store.update("children", child.id, { ahead: (child.ahead || 0) + step }); say("Next week unlocked. Well done!");
         }}><Rocket size={18} /> I'm ready for next week!</button>
       )}
-      <WordOfDay child={child} voiceLib={voiceLib} earn={earn} />
-      <button className="letters-card" onClick={() => go("kid", "journey", String(j.finished ? JOURNEY_DAYS : j.day))}>
-        <span className="lc-label">✍️ Write with Gini</span>
-        <span className="lc-letters kn">{j.lesson.items.slice(0, 3).join(" ")}</span>
-        <span className="lc-sub">{j.finished ? "You finished every letter! 🏆" : <>Today's letters · Gini shows you how</>}</span>
-        <span className="lc-dots" aria-hidden="true">{Array.from({ length: 5 }, (_, i) => <i key={i} className={i < Object.keys(j.done).length % 5 ? "on" : ""} />)}</span>
-      </button>
-      <div className="kid-big">
-        <button className="kb story" onClick={() => go("kid", "stories", story.id)}><span className="kb-pic" aria-hidden="true">{story.pic}</span><b>Story time</b><small>{story.en}</small></button>
-        <button className="kb call" onClick={() => go("kid", "family", fam.id)}><span className="kb-pic" aria-hidden="true">{fam.pic}</span><b>Talk to {fam.who.split(" ")[0]}</b><small>{famDone ? "Done ✓" : fam.en}</small></button>
-        <button className="kb games" onClick={() => go("kid", "games")}><span className="kb-pic" aria-hidden="true">🎮</span><b>Games</b><small>Words, sounds, puzzles</small></button>
-        <button className="kb champs" onClick={() => go("kid", "stars")}><span className="kb-pic" aria-hidden="true">🏆</span><b>{myWeek} ⭐ this week</b><small>{rank ? `You're number ${rank}!` : "Win stars to join!"}</small></button>
+      <div className="more-fun">
+        <span className="mf-label">More fun</span>
+        <button onClick={() => go("kid", "word")}>🌟 Word of the day</button>
+        <button onClick={() => go("kid", "stories")}>📖 Stories</button>
+        <button onClick={() => go("kid", "games")}>🎮 Games</button>
+        <button onClick={() => go("kid", "family", fam.id)}>{fam.pic} Talk to {fam.who.split(" ")[0]}</button>
+        <button onClick={() => go("kid", "stars")}>🏅 My stars</button>
       </div>
     </>
   );

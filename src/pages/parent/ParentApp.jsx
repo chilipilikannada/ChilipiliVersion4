@@ -32,7 +32,7 @@ const PARENT_ROUTES = ["home", "packets", "plan", "packs"];
 const LEARN_ROUTES = ["learn", "printables"];
 
 export default function ParentApp() {
-  const { profile, route, go } = useApp();
+  const { profile, route, go, isStaff, setView } = useApp();
   const me = [["parentEmails", "array-contains", profile.email]];
   const [children, loadingKids] = useWatch("children", me);
   const [subs] = useWatch("submissions", me);
@@ -62,7 +62,7 @@ export default function ParentApp() {
   const fam = { child, kids: all, subs, activity, logs, notes, messages, meets, posts, voiceLib, strokeLib, packetFiles, setSel };
 
   if (loadingKids) return <div className="auth-wrap"><b>Loading…</b></div>;
-  if (!all.length || route[0] === "add") return <Onboarding first={!all.length} onDone={(id) => { setSel(id); go(""); }} />;
+  if (!all.length || route[0] === "add") return <>{isStaff && <div className="staff-back"><button className="btn ghost small" onClick={() => { setView(""); go("today"); }}>← {profile.role === "admin" ? "Admin view" : "Teacher view"}</button></div>}<Onboarding first={!all.length} onDone={(id) => { setSel(id); go(""); }} /></>;
   if (tab === "kid" && child) return <KidSpace fam={fam} />;
 
   const unreadTeacher = child ? messages.filter((m) => m.childId === child.id && m.fromRole !== "parent" && m.at > (Number(localStorage.getItem("chilipili-read-" + child.id)) || 0)).length : 0;
@@ -80,6 +80,7 @@ export default function ParentApp() {
         <div className="appbar-in">
           <button className="brand" onClick={() => go("")}><Logo /><BrandName light /></button>
           <span className="spacer" />
+          {isStaff && <button className="btn ghost small" style={{ marginRight: 8 }} onClick={() => { setView(""); go("today"); }}>{profile.role === "admin" ? "Admin view" : "Teacher view"}</button>}
           {sub && child && pool.length > 1 ? (
             <button className="child-switch" onClick={() => setPicker(true)} aria-label="Switch learner"><Avatar name={child.name} size="sm" /> {firstName(child.name)} <ChevronDown size={16} /></button>
           ) : <button className="child-switch" onClick={() => setPicker(true)} aria-label="Menu"><Avatar name={profile.name || profile.email} size="sm" /> <ChevronDown size={16} /></button>}

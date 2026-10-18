@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ClassPick from "../../components/ClassPick.jsx";
 import { ArrowLeft, CalendarPlus, MapPin, Video, X } from "lucide-react";
 import { useApp, firstName } from "../../lib/hooks.js";
 import { store } from "../../lib/store/index.js";
@@ -20,7 +21,7 @@ export default function Meets({ data }) {
 
 function MeetList({ data }) {
   const { school, say, go, profile } = useApp();
-  const [f, setF] = useState({ group: school.groups[0] || "", date: isoLocal(Date.now() + 7 * DAY), time: "10:00", duration: 60, mode: "in-person", where: "", repeat: 6, notes: "" });
+  const [f, setF] = useState({ classId: profile.role === "admin" ? "" : (profile.classes || [])[0] || "", group: school.groups[0] || "", date: isoLocal(Date.now() + 7 * DAY), time: "10:00", duration: 60, mode: "in-person", where: "", repeat: 6, notes: "" });
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const live = data.meets.filter((x) => x.status !== "cancelled");
   const upcoming = live.filter((x) => meetState(x) !== "ended").sort((a, b) => a.startAt - b.startAt);
@@ -35,7 +36,7 @@ function MeetList({ data }) {
       for (let i = 0; i < +f.repeat; i++) {
         const date = new Date(Date.UTC(y, mo - 1, d + i * 28)).toISOString().slice(0, 10);
         const startAt = zoneMs(date, f.time, school.timeZone);
-        await store.add("meets", { title: "Month-end meet", group: f.group, startAt, date, time: f.time, duration: +f.duration, mode: online ? "online" : "in-person", url, location: online ? "" : f.where || school.venue || "", notes: f.notes.trim(), status: "scheduled", by: profile.uid, at: Date.now() });
+        await store.add("meets", { title: "Month-end meet", classId: f.classId || "", group: f.group, startAt, date, time: f.time, duration: +f.duration, mode: online ? "online" : "in-person", url, location: online ? "" : f.where || school.venue || "", notes: f.notes.trim(), status: "scheduled", by: profile.uid, at: Date.now() });
       }
       say(+f.repeat > 1 ? `${f.repeat} meets scheduled, every 4 weeks.` : "Meet scheduled.");
     } catch (e) { say(friendlyError(e), true); }
@@ -56,6 +57,7 @@ function MeetList({ data }) {
       <div className="card">
         <h3>Schedule meets</h3>
         <div className="grid2">
+          <ClassPick classes={data.classes} value={f.classId} onChange={(v) => set("classId", v)} label="Class" />
           <div className="field"><label>Group</label><select value={f.group} onChange={(e) => set("group", e.target.value)}>{[...school.groups, "All groups"].map((g) => <option key={g}>{g}</option>)}</select></div>
           <div className="field"><label>First meet</label><input type="date" value={f.date} onChange={(e) => set("date", e.target.value)} /></div>
           <div className="field"><label>Start time ({school.tzLabel})</label><input type="time" value={f.time} onChange={(e) => set("time", e.target.value)} /></div>

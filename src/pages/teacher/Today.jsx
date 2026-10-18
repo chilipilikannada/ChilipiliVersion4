@@ -51,7 +51,7 @@ export default function Today({ data, badges }) {
           {next ? <><h3>{fmtWhen(next.startAt, school.timeZone, school.tzLabel)}</h3><p className="muted">{next.group} · {next.mode === "online" ? "online" : next.location || school.venue || "in person"}</p></> : <p className="muted">None scheduled.</p>}
           <button className="btn ghost small" style={{ justifySelf: "start" }} onClick={() => go("meets")}>Meets</button>
         </div>
-        <div className="card">
+        {profile.role === "admin" ? <div className="card">
           <span className="label">Your voice and handwriting</span>
           <h3>{written} of {letters.length} letters written · {recorded} of {allWords.length} words and sentences recorded</h3>
           <p className="muted small">Children watch your strokes and get checked against them in Write, and hear your voice in Listen, Play and Speak. Start with the vowels and month 1's sentences.</p>
@@ -60,7 +60,12 @@ export default function Today({ data, badges }) {
             <button className="btn ghost small" onClick={() => go("voice")}><AudioLines size={18} /> Record words</button>
             <button className="btn ghost small" onClick={() => go("sheets")}><FileText size={18} /> Packets</button>
           </div>
-        </div>
+        </div> : <div className="card">
+          <span className="label">My classes</span>
+          <h3>{(profile.classes || []).length} {(profile.classes || []).length === 1 ? "class" : "classes"}</h3>
+          <p className="muted small">Share your class code with families. They type it when adding their child, and join your class.</p>
+          <button className="btn ghost small" style={{ justifySelf: "start" }} onClick={() => go("classes")}>Class codes</button>
+        </div>}
       </div>
 
       <div className="card">
@@ -79,7 +84,7 @@ export default function Today({ data, badges }) {
               </li>
             ))}
           </ul>
-        ) : <Empty art={<Gini className="gini" />} title="No children yet">Share your class code (Settings) with families. They'll appear here as they sign up.</Empty>}
+        ) : <Empty art={<Gini className="gini" />} title="No children yet">Share a class code (Teachers & classes, or My classes) with families. They'll appear here as they sign up.</Empty>}
       </div>
 
       <div className="grid3">
