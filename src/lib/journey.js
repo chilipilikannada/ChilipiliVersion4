@@ -11,7 +11,7 @@ export const LETTER_PIC = {
 };
 
 // Words with no vowel signs, for reading as soon as their letters are learnt. [kannada, romanised, english, picture]
-const PLAIN_WORDS = [
+export const PLAIN_WORDS = [
   ["ಮರ", "mara", "tree", "🌳"], ["ಜನ", "jana", "people", "👥"], ["ಹಣ", "haNa", "money", "💰"], ["ಬಲ", "bala", "strength", "💪"],
   ["ದನ", "dana", "cow", "🐄"], ["ಕಮಲ", "kamala", "lotus", "🪷"], ["ತಬಲ", "tabala", "tabla", "🥁"], ["ಪದ", "pada", "word", "🔤"],
   ["ಗಜ", "gaja", "elephant", "🐘"], ["ರಥ", "ratha", "chariot", "🛕"], ["ಸರ", "sara", "necklace", "📿"], ["ನಗರ", "nagara", "city", "🏙️"],

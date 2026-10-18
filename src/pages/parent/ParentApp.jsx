@@ -4,6 +4,7 @@ import BrandName from "../../components/BrandName.jsx";
 import { Home, Users, GraduationCap, Globe, ChevronDown, LogOut } from "lucide-react";
 import GeneralCorner from "../General.jsx";
 import WorkbookCard from "../../components/Workbook.jsx";
+import WelcomeKit from "../../components/WelcomeKit.jsx";
 import { PackList, PackView } from "../../components/Packs.jsx";
 import { packById } from "../../lib/packs.js";
 import { useApp, useWatch, useVoiceLib, useStrokeLib, usePacketFiles, firstName } from "../../lib/hooks.js";
@@ -70,7 +71,7 @@ export default function ParentApp() {
   const inLearn = corner === "learn" && ["learn", "printables", "meets", "messages", "child"].includes(tab);
   const activeCorner = tab === "" ? "" : tab === "general" ? "general" : inLearn ? "learn" : inParent ? "home" : tab;
   const needKid = inParent && !kidsOnly.length, needMe = inLearn && !adults.length;
-  const Page = tab === "" ? Hub : tab === "general" ? GeneralTab : needKid ? NoKid : needMe ? NoMe
+  const Page = tab === "welcome" ? WelcomePage : tab === "" ? Hub : tab === "general" ? GeneralTab : needKid ? NoKid : needMe ? NoMe
     : { plan: PlanPage, home: HomePage, learn: HomePage, packets: Packets, printables: PrintablesPage, packs: PacksPage, meets: Meets, messages: Messages, child: ChildPage }[tab] || Hub;
   const sub = inParent && !needKid ? PARENT_TABS : inLearn && !needMe ? LEARN_TABS : null;
   return (
@@ -173,6 +174,7 @@ function PrintablesPage({ fam }) {
   return (
     <div className="stack">
       <div className="page-title"><h1>Printables</h1><p className="muted" style={{ margin: 0 }}>Print once, keep by the fridge, practise with your partner. New lesson sheets every week.</p></div>
+      <WelcomeKit child={fam.child} adult strokeLib={fam.strokeLib} />
       <div className="card"><WorkbookCard child={fam.child} strokeLib={fam.strokeLib} compact full /></div>
     </div>
   );
@@ -186,6 +188,17 @@ function PacksPage({ fam }) {
     <div className="stack">
       <div className="page-title"><h1>Real-life Kannada</h1><p className="muted" style={{ margin: 0 }}>Phrases for the moments that matter: calls to India, grandparents visiting, the temple, festivals, weddings, a trip home. Hear them, practise with Gini, print them.</p></div>
       {pk ? <PackView key={pk.id} pack={pk} voiceLib={fam.voiceLib} onBack={() => go("packs")} /> : <PackList onOpen={(x) => go("packs", x.id)} />}
+    </div>
+  );
+}
+
+// Linked from the welcome email: the kit for each learner in the family.
+function WelcomePage({ fam }) {
+  const list = fam.kids.filter((c) => c.status === "active");
+  return (
+    <div className="stack">
+      <div className="page-title"><h1>Welcome kit 🎁</h1><p className="muted">Print these on day one. They make home practice easy and fun.</p></div>
+      {list.map((c) => <div key={c.id} className="stack-s"><b>{c.name}</b><WelcomeKit child={c} adult={isAdult(c)} strokeLib={fam.strokeLib} /></div>)}
     </div>
   );
 }

@@ -183,9 +183,11 @@ const HearBtn = ({ text, lib, say, big }) => (
 const biteKey = (child, week, day) => `bite-${child.id}-w${week}-d${day}`;
 const readBite = (k) => { try { return Number(localStorage.getItem(k)) || 0; } catch { return 0; } };
 const writeBite = (k, v) => { try { if (v) localStorage.setItem(k, String(v)); else localStorage.removeItem(k); } catch {} };
+// Little learners' days: pictures first.
+const BEGINNER_DAYS = [{ icon: "🖼️", en: "Picture words" }, { icon: "🔎", en: "Find the picture" }, { icon: "❓", en: "What is this?" }, { icon: "🔁", en: "Remember" }, { icon: "🗣️", en: "Say it" }, { icon: "🏅", en: "Picture quiz" }];
 function Mission(props) {
   const { child, wk, day, easy, back, earn, go } = props;
-  const DAYS = daysFor(wk.track);
+  const DAYS = levelOf(child) <= 1 ? BEGINNER_DAYS : daysFor(wk.track);
   const plan = useMemo(() => {
     const j = journeyOf(child);
     const known = learnedBefore(j.day).slice(-6);
@@ -194,7 +196,7 @@ function Mission(props) {
     const have = charsOf([...learnedBefore(j.day), ...j.lesson.items]);
     const pool = [...((wk.packet.theme && wk.packet.theme.words) || []).map((w) => w[0]), ...(j.lesson.reading || []).map((w) => w[0]), ...(j.lesson.words || []).map((w) => w[0])];
     const writeWord = writeTargets(pool, have);
-    return dayPlan({ ...wk.packet, unit }, day, { easy, review: reviewLessons(wk.track, wk.packet.n, paceOf(child)), seed: wk.week * 7 + day, writeWord });
+    return dayPlan({ ...wk.packet, unit }, day, { easy, review: reviewLessons(wk.track, wk.packet.n, paceOf(child)), seed: wk.week * 7 + day, writeWord, beginner: levelOf(child) <= 1 });
   }, [wk, day, easy, child]);
   // Tiny bites: each step is a short bite with its own finish. Come back any time to the next one.
   const key = biteKey(child, wk.week, day);
@@ -1461,7 +1463,7 @@ function KidHome({ child, wk, go, say, DAYS, daysDone, nextDay, voiceLib, earn, 
     { key: "games", pic: "🎮", title: "Play a game", sub: "Words, sounds, puzzles", cls: "t-games", go: () => go("kid", "games") },
   ][new Date().getDay() % 3];
   const tiles = [
-    { key: "lesson", pic: nextDay ? DAYS[nextDay - 1].icon : "🏆", title: nextDay ? "Gini's lesson" : "Play again", sub: nextDay ? (readBite(biteKey(child, wk.week, nextDay)) ? `Bite ${readBite(biteKey(child, wk.week, nextDay)) + 1} · ${DAYS[nextDay - 1].en}` : `${DAYS[nextDay - 1].en} · short bites`) : "All done this week!", cls: "t-lesson", go: () => go("kid", "day", String(nextDay || 1)), done: !nextDay },
+    { key: "lesson", pic: nextDay ? (levelOf(child) <= 1 ? (wk.theme && wk.theme.words[0][3]) || DAYS[nextDay - 1].icon : DAYS[nextDay - 1].icon) : "🏆", title: nextDay ? (levelOf(child) <= 1 && wk.theme ? `Picture words` : "Gini's lesson") : "Play again", sub: nextDay ? (() => { const what = levelOf(child) <= 1 && wk.theme ? wk.theme.en : DAYS[nextDay - 1].en, at = readBite(biteKey(child, wk.week, nextDay)); return at ? `Bite ${at + 1} · ${what}` : `${what} · short bites`; })() : "All done this week!", cls: "t-lesson", go: () => go("kid", "day", String(nextDay || 1)), done: !nextDay },
     { key: "write", pic: "✍️", title: "Draw letters", sub: <span className="kn" style={{ fontSize: 22 }}>{j.lesson.items.slice(0, 3).join(" ")}</span>, cls: "t-write", go: () => go("kid", "journey", String(j.finished ? JOURNEY_DAYS : j.day)) },
     third,
   ];

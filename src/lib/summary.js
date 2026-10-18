@@ -111,6 +111,17 @@ const numberBox = (nm, pin, appUrl) => `<p>${h(nm)}'s number for <b>Kid's corner
   <p style="font-size:34px;font-weight:bold;letter-spacing:.2em;color:#1d5fa8;margin:6px 0">${h(pin)}</p>
   <p>On any phone, iPad or computer: open ${appUrl ? `<a href="${h(appUrl)}">${h(appUrl.replace(/^https?:\/\//, ""))}</a>` : "Chili Pili"}, tap <b>Kid's corner</b> and type the 4 numbers. ${h(nm)} stays signed in on that device, and stars and work carry across every device.</p>`;
 const first = (n) => String(n || "").split(" ")[0];
+const kitBtn = (appUrl, file, label) => `<a href="${h(appUrl)}/kit/${file}" style="display:inline-block;background:#c8102e;color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none;font-weight:bold;margin:6px 0">${label}</a>`;
+// The welcome kit: printables on the website, ready to download and print.
+const kitBox = (appUrl, adult) => `<div style="background:#fff8e1;border:2px solid #ffd96a;border-radius:12px;padding:12px 14px;margin:12px 0">
+  <div style="font-size:17px;font-weight:bold">🎁 Your welcome kit</div>
+  <p style="margin:6px 0;font-size:17px;color:#8a0d1f">${adult ? "ಕನ್ನಡ ಕಲಿಯಲು ನೀವು ನಿರ್ಧರಿಸಿದ್ದು ನಮಗೆ ತುಂಬಾ ಸಂತೋಷ ತಂದಿದೆ!" : "ನಿಮ್ಮ ಮಕ್ಕಳಿಗೆ ಕನ್ನಡ ಕಲಿಸಲು ನೀವು ನಿರ್ಧರಿಸಿದ್ದು ನಮಗೆ ತುಂಬಾ ಸಂತೋಷ ತಂದಿದೆ!"}<br><span style="font-size:13px;color:#7b5b52">${adult ? "We are so happy that you decided to learn Kannada!" : "We are so happy that you decided to teach your children Kannada!"}</span></p>
+  <p style="margin:6px 0">Print these and practise anywhere, even offline: tracing, saying words out loud, and more. <b>"Start here"</b> is attached to this email.</p>
+  ${appUrl ? (adult
+    ? `${kitBtn(appUrl, "chilipili-grownups-practice-pack.pdf", "📄 Practice pack for grown-ups (PDF)")}<div style="font-size:13px;color:#7b5b52;margin:2px 0 8px">Welcome letter, guide, alphabet chart, letter tracing book, "say it 3 times" phrase sheets, the fridge sheet, conversation cards, home labels.</div>`
+    : `${kitBtn(appUrl, "chilipili-kids-practice-pack.pdf", "📄 Practice pack for kids (PDF)")}<div style="font-size:13px;color:#7b5b52;margin:2px 0 8px">Welcome letter, parent guide, alphabet chart, letter tracing book, "say it 3 times" picture words, simple words to trace, 108 picture cards, home labels.</div>${kitBtn(appUrl, "chilipili-kids-month-1-packets.pdf", "📦 Month 1 packets (PDF)")}<div style="font-size:13px;color:#7b5b52;margin:2px 0 8px">Weeks 1 to 3 of paper packets: one page a day.</div>`)
+    + `<a href="${h(appUrl)}/#/welcome" style="color:#c8102e;font-weight:bold">More in the app →</a>` : ""}
+</div>`;
 
 export function parentWelcomeHTML({ child, appUrl = "", schoolName = "Chili Pili" }) {
   const nm = first(child.name), L = levelOf(child);
@@ -120,12 +131,12 @@ export function parentWelcomeHTML({ child, appUrl = "", schoolName = "Chili Pili
     <p>You start at <b>level ${L}: ${h(ADULT_LEVELS[L - 1].en)}</b>${child.status === "active" ? "" : " once the teacher approves your sign-up"}. Change level any time with ◀ ▶ on your Home page.</p>
     ${u ? `<p><b>Your first lesson:</b> ${h(u.en)}. ${h(u.goal)}</p><p style="font-size:20px">${u.phrases.slice(0, 3).map((p) => `${h(p[0])} <span style="font-size:14px;color:#7b5b52">${h(p[1])} · ${h(p[2])}</span>`).join("<br>")}</p>` : ""}
     <p><b>Each day (15 to 20 minutes):</b> one conversation lesson, and one letter-journey day when you're ready for the script. Use one new phrase with a real person before the next lesson.</p>
-    <p>On another phone or computer, just sign in with this same Google account.</p>`, appUrl);
+    <p>On another phone or computer, just sign in with this same Google account.</p>${kitBox(appUrl, true)}`, appUrl);
   }
   return wrap(schoolName, "welcome", `Welcome, ${h(nm)}! 🦜`, `
     <p>${h(nm)} starts at <b>level ${L}: ${h(LEVELS[L - 1].en)}</b>${child.status === "active" ? ", and week 1 is ready." : ". The teacher will approve the sign-up soon."} You can move the level up or down any time with ◀ ▶ on your Home page.</p>
     ${/^\d{4}$/.test(child.kidCode || "") ? numberBox(nm, child.kidCode, appUrl) : ""}
-    <p><b>Each day (about 15 minutes):</b> open ${h(nm)}'s space, do today's mission with Gini, then a Letter journey day. Paper pages are in <b>Packets</b>; snap a photo whenever one is done.</p>`, appUrl);
+    <p><b>Each day (about 10 minutes):</b> open Kid's corner and let ${h(nm)} pick one of Gini's three choices. Short bites, stop while it's fun. Paper pages are in <b>Packets</b>.</p>${kitBox(appUrl, false)}`, appUrl);
 }
 export function kidNumberHTML({ child, appUrl = "", schoolName = "Chili Pili" }) {
   const nm = first(child.name);

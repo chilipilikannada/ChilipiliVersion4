@@ -5,6 +5,17 @@
 import { whoIs, fsGet, fsList, sendEmail, TEACHER_EMAILS, APP_URL, schoolName } from "./_lib.js";
 import { buildSummary, summaryHTML, registrationHTML, parentWelcomeHTML, kidNumberHTML } from "../src/lib/summary.js";
 
+// The short "start here" PDF goes with the welcome email; the full practice packs are links in the email.
+async function startHere(child) {
+  if (!APP_URL) return [];
+  const name = child.adult ? "chilipili-start-here-grownups.pdf" : "chilipili-start-here-kids.pdf";
+  try {
+    const r = await fetch(`${APP_URL.replace(/\/$/, "")}/kit/${name}`);
+    if (!r.ok) return [];
+    return [{ filename: "Chili Pili - start here.pdf", content: Buffer.from(await r.arrayBuffer()) }];
+  } catch { return []; }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   try {
@@ -23,7 +34,7 @@ export default async function handler(req, res) {
       if (child.classId) { try { const cls = await fsGet(`classes/${encodeURIComponent(child.classId)}`, me.token); classTeachers = (cls && cls.teacherEmails) || []; } catch {} }
       const [teacher, parent] = await Promise.all([
         sendEmail({ to: classTeachers.length ? [...new Set([...TEACHER_EMAILS, ...classTeachers])] : undefined, subject: child.adult ? `New grown-up learner: ${child.name} joined ${name}` : `New family: ${child.name} (age ${child.age}) joined ${name}`, html: registrationHTML({ child, parentName: me.name, parentEmail: me.email, appUrl: APP_URL, schoolName: name }) }).catch((e) => ({ error: String(e.message || e) })),
-        sendEmail({ to: child.parentEmails, subject: child.adult ? `Welcome to ${name}, ${String(child.name).split(" ")[0]}! Your first Kannada lesson` : `Welcome to ${name}! ${String(child.name).split(" ")[0]}'s number is ${child.kidCode || "on your Home page"}`, html: parentWelcomeHTML({ child, appUrl: APP_URL, schoolName: name }) }).catch((e) => ({ error: String(e.message || e) })),
+        sendEmail({ to: child.parentEmails, attachments: await startHere(child), subject: child.adult ? `Welcome to ${name}, ${String(child.name).split(" ")[0]}! Your first Kannada lesson` : `Welcome to ${name}! ${String(child.name).split(" ")[0]}'s number is ${child.kidCode || "on your Home page"}`, html: parentWelcomeHTML({ child, appUrl: APP_URL, schoolName: name }) }).catch((e) => ({ error: String(e.message || e) })),
       ]);
       return res.status(200).json({ teacher, parent });
     }

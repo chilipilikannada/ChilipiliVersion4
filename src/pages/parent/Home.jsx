@@ -4,6 +4,7 @@ import { FEATURES } from "../../lib/config.js";
 import ProgramPlan from "../../components/ProgramPlan.jsx";
 import WordOfDay from "../../components/WordOfDay.jsx";
 import { Sparkles, Star, Flame, CalendarHeart, BookOpen, Camera, MapPin, Video, Clock, Check, X, ArrowRight } from "lucide-react";
+import KitBanner from "../../components/KitBanner.jsx";
 import { useApp, firstName } from "../../lib/hooks.js";
 import { Gini, STAGE_EMOJI } from "../../components/Art.jsx";
 import { Ladder, StageChip, StoredImage, Avatar, Empty } from "../../components/ui.jsx";
@@ -74,6 +75,7 @@ export default function Home({ fam }) {
         <KidCode child={child} compact />
       </div>
 
+      <KitBanner child={child} strokeLib={fam.strokeLib} />
       <WordOfDay child={child} variant="parent" voiceLib={fam.voiceLib} />
       <button className="say-card words" onClick={() => go("packs")}>
         <span className="wc-pics" aria-hidden="true">📱🛕🪔</span>

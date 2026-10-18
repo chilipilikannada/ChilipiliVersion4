@@ -141,13 +141,13 @@ async function gmail() {
   return mailer;
 }
 // to: omitted = the teacher. replyTo defaults to the teacher so parents' replies reach you.
-export async function sendEmail({ subject, html, to }) {
+export async function sendEmail({ subject, html, to, attachments }) {
   const toParents = !!to;
   const list = [].concat(to || TEACHER_EMAILS).map((x) => String(x).trim()).filter(Boolean);
   if (!list.length) return { skipped: toParents ? "no parent email" : "TEACHER_EMAIL is not set" };
   if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) {
     const m = await gmail();
-    const info = await m.sendMail({ from: `"${env.EMAIL_NAME || "Chili Pili Kannada"}" <${env.GMAIL_USER}>`, to: list.join(", "), replyTo: TEACHER_EMAILS[0] || env.GMAIL_USER, subject, html });
+    const info = await m.sendMail({ from: `"${env.EMAIL_NAME || "Chili Pili Kannada"}" <${env.GMAIL_USER}>`, to: list.join(", "), replyTo: TEACHER_EMAILS[0] || env.GMAIL_USER, subject, html, ...(attachments && attachments.length ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType || "application/pdf" })) } : {}) });
     if (env.MAIL_DRY_RUN) (globalThis.__sentMail ||= []).push(JSON.parse(info.message));
     return { sent: true, via: "gmail" };
   }
@@ -156,7 +156,7 @@ export async function sendEmail({ subject, html, to }) {
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env.EMAIL_FROM || "Chili Pili <onboarding@resend.dev>", to: list, reply_to: TEACHER_EMAILS[0], subject, html }),
+    body: JSON.stringify({ from: env.EMAIL_FROM || "Chili Pili <onboarding@resend.dev>", to: list, reply_to: TEACHER_EMAILS[0], subject, html, ...(attachments && attachments.length ? { attachments: attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString("base64") })) } : {}) }),
   });
   if (!r.ok) throw new Error(`Email failed: ${r.status} ${await r.text()}`);
   return { sent: true, via: "resend" };

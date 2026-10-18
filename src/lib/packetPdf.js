@@ -626,3 +626,239 @@ export async function packsPdf({ packs = [], school }) {
   for (const p of pages) { const img = await doc.embedJpg(p.c.toDataURL("image/jpeg", 0.86)); const page = doc.addPage([612, 792]); page.drawImage(img, { x: 0, y: 0, width: 612, height: 792 }); }
   return await doc.save();
 }
+
+// ---------- Welcome kit: printables every new family gets ----------
+const EMO = (px) => `${px}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+function kitHeader(p, { title, sub, school }) {
+  const { g } = p;
+  g.fillStyle = RED; g.fillRect(0, 0, PW, 110); g.fillStyle = YEL; g.fillRect(0, 110, PW, 10);
+  g.fillStyle = "#fff"; g.font = EN(40, 800); g.textBaseline = "middle"; g.fillText(`${school || "Chili Pili"} · Welcome kit`, M, 56);
+  g.textAlign = "right"; g.font = KN(30); g.fillText("ಚಿಲಿಪಿಲಿ ಕನ್ನಡ ಕಲಿ", PW - M, 58); g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = INK; g.font = EN(44, 800); g.fillText(title, M, 196);
+  if (sub) { g.fillStyle = MUTE; g.font = EN(24, 600); g.fillText(sub, M, 234); }
+  p.y = 270;
+}
+function bullets(p, items, { size = 24, gap = 14, icon = "•" } = {}) {
+  const { g } = p;
+  for (const it of items) {
+    const [head, body] = Array.isArray(it) ? it : [null, it];
+    g.fillStyle = RED; g.font = EN(size, 800); g.fillText(icon, M + 8, p.y + size);
+    let x = M + 44;
+    if (head) { g.fillStyle = INK; g.font = EN(size, 800); g.fillText(head, x, p.y + size); p.y += size + 8; }
+    g.fillStyle = INK; g.font = EN(size - 2, 500);
+    p.y = wrap(g, body, x, p.y + size - (head ? 0 : 0), PW - M - x, size + 10) + gap - (size - 2);
+  }
+}
+// The welcome letter. Kannada first, English underneath.
+const WELCOME_KIDS = [
+  ["ಪ್ರೀತಿಯ ಕುಟುಂಬಕ್ಕೆ ನಮಸ್ಕಾರ!", "Dear family, namaskara!"],
+  ["ನಿಮ್ಮ ಮಕ್ಕಳಿಗೆ ಕನ್ನಡ ಕಲಿಸಲು ನೀವು ನಿರ್ಧರಿಸಿದ್ದು ನಮಗೆ ತುಂಬಾ ಸಂತೋಷ ತಂದಿದೆ.", "We are so happy that you decided to teach your children Kannada."],
+  ["ಕನ್ನಡ ನಮ್ಮ ತಾಯ್ನುಡಿ, ನಮ್ಮ ಮನೆಯ ಮಾತು, ನಮ್ಮ ಅಜ್ಜ ಅಜ್ಜಿಯರ ಪ್ರೀತಿಯ ಭಾಷೆ.", "Kannada is our mother tongue, the language of our home, the loving language of our grandparents."],
+  ["ದೂರದ ದೇಶದಲ್ಲಿದ್ದರೂ, ನಮ್ಮ ಮಕ್ಕಳು ಕನ್ನಡದಲ್ಲಿ ನಗಲಿ, ಮಾತಾಡಲಿ, ಓದಲಿ, ಬರೆಯಲಿ.", "Even far from home, may our children laugh, speak, read and write in Kannada."],
+  ["ದಿನಕ್ಕೆ ಹತ್ತು ನಿಮಿಷ ಸಾಕು. ಗಿಣಿಯ ಜೊತೆ ಆಟ ಆಡುತ್ತಾ ಕಲಿಯೋಣ!", "Ten minutes a day is enough. Let's learn while playing with Gini!"],
+];
+const WELCOME_ADULT = [
+  ["ನಮಸ್ಕಾರ!", "Namaskara!"],
+  ["ಕನ್ನಡ ಕಲಿಯಲು ನೀವು ನಿರ್ಧರಿಸಿದ್ದು ನಮಗೆ ತುಂಬಾ ಸಂತೋಷ ತಂದಿದೆ.", "We are so happy that you decided to learn Kannada."],
+  ["ನಿಮ್ಮ ಸಂಗಾತಿ, ಮಕ್ಕಳು ಮತ್ತು ಕುಟುಂಬದ ಜೊತೆ ಕನ್ನಡದಲ್ಲಿ ಮಾತಾಡುವ ಖುಷಿಯೇ ಬೇರೆ.", "There is a special joy in speaking Kannada with your partner, your children and your family."],
+  ["ತಪ್ಪುಗಳಿಗೆ ಹೆದರಬೇಡಿ. ಪ್ರತಿಯೊಂದು ಪದವೂ ಒಂದು ಹೆಜ್ಜೆ.", "Don't be afraid of mistakes. Every word is a step forward."],
+  ["ದಿನಕ್ಕೆ ಹದಿನೈದು ನಿಮಿಷ, ನಿಧಾನವಾಗಿ, ಖುಷಿಯಾಗಿ ಕಲಿಯೋಣ.", "Fifteen minutes a day, slowly and happily. Let's learn together."],
+];
+export const WELCOME_LINE = { kids: WELCOME_KIDS[1], adult: WELCOME_ADULT[1] };
+const HOME_LABELS = [
+  ["ಬಾಗಿಲು", "baagilu", "door", "🚪"], ["ಕಿಟಕಿ", "kiTaki", "window", "🪟"], ["ಕುರ್ಚಿ", "kurchi", "chair", "🪑"], ["ಮೇಜು", "meeju", "table", "🪵"],
+  ["ಹಾಸಿಗೆ", "haasige", "bed", "🛏️"], ["ದಿಂಬು", "dimbu", "pillow", "🛌"], ["ದೀಪ", "deepa", "lamp", "💡"], ["ಗಡಿಯಾರ", "gaDiyaara", "clock", "🕰️"],
+  ["ಕನ್ನಡಿ", "kannaDi", "mirror", "🪞"], ["ತಟ್ಟೆ", "taTTe", "plate", "🍽️"], ["ಲೋಟ", "looTa", "cup", "🥛"], ["ಚಮಚ", "chamacha", "spoon", "🥄"],
+  ["ಬಟ್ಟಲು", "baTTalu", "bowl", "🥣"], ["ನೀರು", "niiru", "water", "💧"], ["ಹಾಲು", "haalu", "milk", "🍼"], ["ಪುಸ್ತಕ", "pustaka", "book", "📖"],
+  ["ಚೀಲ", "chiila", "bag", "🎒"], ["ಬಟ್ಟೆ", "baTTe", "clothes", "👕"], ["ಚಪ್ಪಲಿ", "chappali", "slippers", "🩴"], ["ಹೂವು", "huuvu", "flower", "🌼"],
+  ["ಆಟಿಕೆ", "aaTike", "toy", "🧸"], ["ಮನೆ", "mane", "home", "🏠"], ["ಅಡುಗೆಮನೆ", "aDugemane", "kitchen", "🍳"], ["ಸ್ನಾನದ ಮನೆ", "snaanada mane", "bathroom", "🛁"],
+];
+
+export async function welcomeKitPdf({ part = "guide", adult = false, school, themes = [], alphabet, letterPic = {}, strokeLib = {}, sayList = [], plainWords = [] }) {
+  await ensureFont();
+  try { await document.fonts.load(EN(20)); } catch {}
+  const { PDFDocument } = await import("pdf-lib");
+  const pages = [];
+  const page = (title, sub) => { const p = newPage(); kitHeader(p, { title, sub, school }); pages.push(p); return p; };
+
+  if (part === "letter") {
+    // A warm welcome, in Kannada first. (Please have a Kannada speaker check the wording.)
+    const p = page(adult ? "ಸ್ವಾಗತ! Welcome!" : "ಸ್ವಾಗತ! Welcome to the family!", "");
+    const g = p.g;
+    g.font = EMO(120); g.textAlign = "center"; g.fillText("🦜", PW / 2, p.y + 120); g.textAlign = "left";
+    p.y += 170;
+    const L = adult ? WELCOME_ADULT : WELCOME_KIDS;
+    for (const [kn, en] of L) {
+      g.fillStyle = DEEP; g.font = KN(38); p.y = wrap(g, kn, M + 30, p.y + 40, PW - 2 * M - 60, 54) - 14;
+      g.fillStyle = MUTE; g.font = EN(24, 600); p.y = wrap(g, en, M + 30, p.y + 10, PW - 2 * M - 60, 34) + 18;
+    }
+    p.y += 20;
+    p.y = Math.min(p.y, PH - 330);
+    g.fillStyle = "#fff4cf"; roundRect(g, M, p.y, PW - 2 * M, 200, 24); g.fill();
+    g.textAlign = "center"; g.fillStyle = RED; g.font = KN(44); g.fillText("ಕಲಿಯೋಣ · ಮಾತಾಡೋಣ · ಹಂಚೋಣ", PW / 2, p.y + 64);
+    g.fillStyle = MUTE; g.font = EN(24, 700); g.fillText("Let's learn it · Let's speak it · Let's pass it on", PW / 2, p.y + 108);
+    g.fillStyle = DEEP; g.font = KN(38); g.fillText("ಸಿರಿಗನ್ನಡಂ ಗೆಲ್ಗೆ!", PW / 2, p.y + 168); g.textAlign = "left";
+    footer(p, `With love, ${school || "Chili Pili Kannada Kali"} · ಚಿಲಿಪಿಲಿ ಕನ್ನಡ ಕಲಿ`);
+  }
+
+  if (part === "say3") {
+    // Repeat practice: say each one three times, colour a circle each time.
+    const rowH = adult ? 92 : 104;
+    for (let s0 = 0; s0 < sayList.length;) {
+      const p = page(adult ? "Say it 3 times: everyday phrases" : "Say it 3 times: picture words", adult ? "Read each phrase out loud three times. Colour a circle each time. Then use one with someone today!" : "Point, say it out loud three times, and colour a circle each time. A grown-up can say it first.");
+      const g = p.g;
+      while (s0 < sayList.length && room(p, rowH)) {
+        const [kn, rom, en, pic] = sayList[s0++];
+        const y = p.y;
+        g.strokeStyle = "#f0e6cf"; g.lineWidth = 2; roundRect(g, M, y, PW - 2 * M, rowH - 12, 14); g.stroke();
+        let x = M + 18;
+        if (pic) { g.font = EMO(54); g.fillText(pic, x, y + 62); x += 84; }
+        g.fillStyle = DEEP; g.font = KN(adult ? 30 : 40); const kw = g.measureText(kn).width; g.fillText(kn, x, y + (adult ? 40 : 50));
+        g.fillStyle = MUTE; g.font = EN(adult ? 18 : 20, 700); g.fillText(`${rom} · ${en}`.slice(0, 70), x, y + (adult ? 70 : 82));
+        for (let k = 0; k < 3; k++) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.arc(PW - M - 40 - k * 64, y + (rowH - 12) / 2, 22, 0, Math.PI * 2); g.stroke(); }
+        p.y += rowH;
+      }
+      footer(p, adult ? "Tip: record yourself on your phone and listen back. Then try it on your partner!" : "Tip: make it a game. Whisper it, shout it, sing it!");
+    }
+  }
+
+  if (part === "wordtrace") {
+    for (let s0 = 0; s0 < plainWords.length; s0 += 5) {
+      const p = page("Trace simple words", "These words use only letters, no signs. Trace them once the letters are learnt, and say each word.");
+      for (const [kn, rom, en, pic] of plainWords.slice(s0, s0 + 5)) {
+        if (!room(p, 230)) break;
+        p.g.fillStyle = MUTE; p.g.font = EN(22, 700); p.g.fillText(`${pic || ""}  ${rom} · ${en}`, M + 6, p.y + 4); p.y += 14;
+        traceRow(p, kn, strokeLib[voiceKey(kn)], false);
+      }
+      footer(p, "Read the word out loud after you write it.");
+    }
+  }
+
+  if (part === "tracing") {
+    const all = [...alphabet.vowels.map((v) => v[0]), ...alphabet.consonants.flat().map((c) => c[0])];
+    for (let s0 = 0; s0 < all.length; s0 += 5) {
+      const p = page(s0 < alphabet.vowels.length ? "Trace the letters: vowels ಸ್ವರಗಳು" : "Trace the letters: consonants ವ್ಯಂಜನಗಳು", "Trace the dots, then write it on your own in the empty box. Say the sound each time.");
+      for (const t of all.slice(s0, s0 + 5)) { if (!room(p, 240)) break; traceRow(p, t, strokeLib[voiceKey(t)], true); }
+      footer(p, "Do one row a day. Watch Gini write each letter in the app first.");
+    }
+  }
+
+  if (part === "guide" && !adult) {
+    let p = page("Welcome! A quick start for parents", "Ten minutes a day, mostly talking and playing. Here's how to make it stick.");
+    section(p, "How it works");
+    bullets(p, [
+      ["1. Open Kid's corner", "On any phone, iPad or computer. Your child signs in with their 4-digit number (it's on your Home page and in your welcome email)."],
+      ["2. Pick one of three", "Gini offers three picture choices every day: a lesson, drawing letters, or a story, call or game. Any one counts."],
+      ["3. Short bites", "Each activity takes 2 to 4 minutes and ends with \"Want another one?\". Stopping while it's still fun is perfect."],
+      ["4. Stars move Gini across Karnataka", "Every 15 stars, Gini flies to a new place (Mysuru, Hampi, Jog Falls...) and your child gets a sticker. Look it up together on a map!"],
+      ["5. Paper, once a week", "Print the weekly packet from the Parent corner. One page a day, ten minutes, at the kitchen table."],
+    ], { size: 29, gap: 24, icon: "★" });
+    section(p, "A simple daily rhythm");
+    bullets(p, [
+      "Same time every day: after the school snack, or before bed. Habits beat long sessions.",
+      "Sit with your child for the first week. After that, let them lead and you just listen.",
+      "Say the new word of the day at dinner. Ask: \"What's that in Kannada?\"",
+    ], { size: 27, gap: 16 });
+    footer(p, "Questions? Message the teacher from the Parent corner, or reply to your welcome email.");
+    p = page("10 ways to keep Kannada fun at home", "Kids learn a language they hear and use, with people they love.");
+    bullets(p, [
+      ["Talk first, letters later", "Understanding and speaking come first. Reading and writing follow much more easily."],
+      ["One Kannada moment at every meal", "Name the food: ಅನ್ನ (rice), ಹಾಲು (milk), ನೀರು (water). Ask for things in Kannada."],
+      ["Label your home", "Print the label sheet in this kit and stick ಬಾಗಿಲು on the door, ಕಿಟಕಿ on the window..."],
+      ["Praise the try, not the result", "A big ಶಭಾಷ್! for every attempt. Mistakes mean they're trying."],
+      ["Repeat, don't correct", "If they say it wrong, just say it back the right way, warmly. No \"no, that's wrong\"."],
+      ["Let them call Ajji and Tata", "One new word on every call. Grandparents' joy is the best reward there is."],
+      ["Bedtime in Kannada", "A story, a song or three Kannada words before sleep. Little and often."],
+      ["Let them teach you", "Ask your child to teach you today's word. Teaching makes it stick."],
+      ["Put the alphabet chart where they eat", "The fridge or the breakfast table. Point to one letter a day."],
+      ["Celebrate the journey", "When Gini reaches a new place, show photos of it. Plan a family visit one day!"],
+    ], { size: 28, gap: 16, icon: "🌼" });
+    section(p, "On days they don't feel like it");
+    bullets(p, ["Do just one bite, or the word of the day, and stop. Keeping it light is how it lasts for months."], { size: 24 });
+    footer(p, "ಕಲಿಯೋಣ · ಮಾತಾಡೋಣ · ಹಂಚೋಣ  Learn it. Speak it. Pass it on.");
+  }
+
+  if (part === "guide" && adult) {
+    let p = page("Welcome! Learning Kannada as a grown-up", "Fifteen minutes a day: talk first, then a little writing.");
+    section(p, "How it works");
+    bullets(p, [
+      ["1. One conversation lesson a day", "Learning corner → My lessons. Listen, repeat, then use one phrase with a real person before the next lesson."],
+      ["2. Write a little every day", "Trace today's letters on screen (Gini shows the start and the arrows), then once on paper. Ten letters a week gets you reading in a few months."],
+      ["3. Print, practise, stick it up", "The fridge sheet (40 everyday phrases), conversation cards to act out with your partner, and tracing sheets. All in Printables."],
+      ["4. Real-life packs", "Calling family in India, the temple, weddings, visiting Karnataka: phrases you'll use this month."],
+    ], { size: 29, gap: 24, icon: "★" });
+    section(p, "Habits that work for busy adults");
+    bullets(p, [
+      "Attach it to something you already do: morning coffee, the commute, after the kids' bedtime.",
+      "Speak with your partner for 5 minutes a day, even if it's just the phrase of the day.",
+      "Keep a small notebook: write each new letter three times, and one word you heard.",
+      "Label your home with the sheet in this kit. You'll read Kannada every time you open a door.",
+      "Don't wait to be perfect. Families love hearing you try.",
+    ], { size: 27, gap: 16 });
+    footer(p, "ಕಲಿಯೋಣ · ಮಾತಾಡೋಣ · ಹಂಚೋಣ  Learn it. Speak it. Pass it on.");
+  }
+
+  if (part === "alphabet") {
+    const p = page("Kannada alphabet ಅಕ್ಷರಮಾಲೆ", "Stick it on the fridge. Point to one letter a day and say its sound.");
+    const g = p.g;
+    const grid = (title, list, cols, cell, top) => {
+      g.fillStyle = DEEP; g.font = EN(26, 800); g.fillText(title, M, top - 12);
+      const w = (PW - 2 * M) / cols;
+      list.forEach(([l, s], i) => {
+        const x = M + (i % cols) * w, y = top + Math.floor(i / cols) * cell;
+        g.fillStyle = i % 2 ? "#fffaf0" : "#fff4cf"; roundRect(g, x + 4, y + 4, w - 8, cell - 8, 14); g.fill();
+        g.strokeStyle = LINE; g.lineWidth = 2; roundRect(g, x + 4, y + 4, w - 8, cell - 8, 14); g.stroke();
+        g.textAlign = "center"; g.fillStyle = RED; g.font = KN(cell * 0.42); g.font = KN(cell * 0.38); g.fillText(l, x + w * (letterPic[l] ? 0.42 : 0.5), y + cell * 0.62);
+        if (letterPic[l]) { g.font = EMO(cell * 0.2); g.fillText(letterPic[l], x + w - 24, y + cell * 0.3); }
+        g.fillStyle = MUTE; g.font = EN(cell * 0.15, 700); g.fillText(s, x + w / 2, y + cell * 0.86); g.textAlign = "left";
+      });
+      return top + Math.ceil(list.length / cols) * cell;
+    };
+    let y = grid("Vowels ಸ್ವರಗಳು", alphabet.vowels, 8, 128, p.y + 40);
+    grid("Consonants ವ್ಯಂಜನಗಳು", alphabet.consonants.flat(), 7, 128, y + 56);
+    footer(p, "Hear every letter in the app: Kid's corner → Draw letters, or the General corner.");
+  }
+
+  if (part === "cards") {
+    const ws = themes.flatMap((t) => t.words.map((w) => [...w, t.en]));
+    for (let s = 0; s < ws.length; s += 12) {
+      const p = page("Picture word cards", "Cut along the dashed lines. Play snap, memory, or \"find the ___\" around the house.");
+      const g = p.g, cols = 3, cw = (PW - 2 * M) / cols, ch = 300;
+      ws.slice(s, s + 12).forEach(([kn, rom, en, pic, th], i) => {
+        const x = M + (i % cols) * cw, y = p.y + Math.floor(i / cols) * ch;
+        g.setLineDash([10, 8]); g.strokeStyle = "#c9b48a"; g.lineWidth = 2; g.strokeRect(x, y, cw, ch); g.setLineDash([]);
+        g.textAlign = "center"; g.font = EMO(110); g.fillText(pic, x + cw / 2, y + 140);
+        g.fillStyle = DEEP; g.font = KN(52); g.fillText(kn, x + cw / 2, y + 214);
+        g.fillStyle = MUTE; g.font = EN(22, 700); g.fillText(`${rom} · ${en}`, x + cw / 2, y + 256);
+        g.font = EN(16, 700); g.fillStyle = "#b8a37a"; g.fillText(th, x + cw / 2, y + 284); g.textAlign = "left"; g.fillStyle = INK;
+      });
+      footer(p, "Tip: hold up a card and ask \"ಇದು ಏನು?\" (What is this?)");
+    }
+  }
+
+  if (part === "labels") {
+    const p = page("Label your home", "Cut out and stick each label on the real thing. Read it every time you pass!");
+    const g = p.g, cols = 3, cw = (PW - 2 * M) / cols, ch = 150;
+    HOME_LABELS.forEach(([kn, rom, en, pic], i) => {
+      const x = M + (i % cols) * cw, y = p.y + Math.floor(i / cols) * ch;
+      g.setLineDash([10, 8]); g.strokeStyle = "#c9b48a"; g.lineWidth = 2; g.strokeRect(x, y, cw, ch); g.setLineDash([]);
+      g.font = EMO(56); g.fillText(pic, x + 18, y + 92);
+      g.fillStyle = DEEP; g.font = KN(44); g.fillText(kn, x + 104, y + 70);
+      g.fillStyle = MUTE; g.font = EN(20, 700); g.fillText(`${rom} · ${en}`, x + 106, y + 112); g.fillStyle = INK;
+    });
+    footer(p, "Ask your child to find the ಬಾಗಿಲು or the ಕಿಟಕಿ. Then swap roles!");
+  }
+
+  const doc = await PDFDocument.create();
+  doc.setTitle(`${school || "Chili Pili"} Kannada · Welcome kit`);
+  for (const p of pages) { const img = await doc.embedJpg(p.c.toDataURL("image/jpeg", 0.88)); const pg = doc.addPage([612, 792]); pg.drawImage(img, { x: 0, y: 0, width: 612, height: 792 }); }
+  return await doc.save();
+}
+
+// Several PDFs into one, for "download everything".
+export async function mergePdfs(list, title) {
+  const { PDFDocument } = await import("pdf-lib");
+  const out = await PDFDocument.create(); out.setTitle(title || "Chili Pili Kannada");
+  for (const bytes of list) { const d = await PDFDocument.load(bytes); const pages = await out.copyPages(d, d.getPageIndices()); pages.forEach((pg) => out.addPage(pg)); }
+  return await out.save();
+}

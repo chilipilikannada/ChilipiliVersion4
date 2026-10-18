@@ -1,6 +1,7 @@
 import { Lock } from "lucide-react";
 import { useApp, firstName } from "../../lib/hooks.js";
 import PacketView, { AlphabetChart } from "../../components/PacketView.jsx";
+import WelcomeKit from "../../components/WelcomeKit.jsx";
 import HandIn from "../../components/HandIn.jsx";
 import { childWeek, PLAN_WEEKS, isMeetWeek, packetNo, weekStart } from "../../lib/plan.js";
 import { lesson, trackOf } from "../../lib/course.js";
@@ -44,6 +45,7 @@ export default function Packets({ fam }) {
         </div>
       </div>
       <PacketView child={child} week={w} voiceLib={voiceLib} strokeLib={strokeLib} packetFiles={packetFiles} onPractise={(k) => go("kid", k)} />
+      <WelcomeKit child={child} strokeLib={strokeLib} />
       {!isMeetWeek(w) && <div className="no-print"><HandIn child={child} week={w} subs={subs} /></div>}
     </div>
   );

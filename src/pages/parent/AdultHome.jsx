@@ -10,6 +10,7 @@ import { UNITS, doneUnits, nextUnit, unitNo, adultLevelOf, adultPace } from "../
 import { LevelStepper } from "./Home.jsx";
 import ProgramPlan from "../../components/ProgramPlan.jsx";
 import WorkbookCard from "../../components/Workbook.jsx";
+import KitBanner from "../../components/KitBanner.jsx";
 import WordOfDay from "../../components/WordOfDay.jsx";
 
 // Home page for a grown-up learner: what's next, progress, and habits that make it stick.
@@ -42,6 +43,18 @@ export default function AdultHome({ fam }) {
         <button className="btn primary" style={{ justifySelf: "start" }} onClick={() => go("kid")}><Sparkles /> Continue learning</button>
       </div>
 
+      <KitBanner child={child} adult strokeLib={fam.strokeLib} />
+      {!jr.finished && (
+        <div className="card write-today">
+          <div className="card-head"><span className="label">✏️ Write today</span><span className="small muted">5 minutes · script day {jr.day} of {JOURNEY_DAYS}</span></div>
+          <div className="wt-letters kn">{jr.lesson.items.slice(0, 4).join("  ")}</div>
+          <p className="small muted" style={{ margin: 0 }}>Watch Gini write them, trace them on screen, then write each one three times on paper. A few letters a day and you'll be reading words within weeks.</p>
+          <div className="row">
+            <button className="btn yellow" onClick={() => go("kid", "journey", String(jr.day))}>Trace on screen</button>
+            <button className="btn ghost" onClick={() => go("printables")}>Print tracing sheets</button>
+          </div>
+        </div>
+      )}
       <WordOfDay child={child} variant="adult" voiceLib={voiceLib} />
       <button className="say-card" onClick={() => go("kid", "chat")}>
         <span className="wc-pics" aria-hidden="true">🦜</span>

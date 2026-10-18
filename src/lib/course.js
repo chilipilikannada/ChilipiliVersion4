@@ -552,7 +552,7 @@ function storyPlan(l, day, { seed = 1 } = {}) {
   return plans[Math.max(0, Math.min(5, day - 1))];
 }
 
-export function dayPlan(l, day, { easy = false, review = [], seed = 1, writeWord = null } = {}) {
+export function dayPlan(l, day, { easy = false, review = [], seed = 1, writeWord = null, beginner = false } = {}) {
   if (l.track === "long") return storyPlan(l, day, { seed });
   const P = l.pattern, items = [...new Set([...(l.unit.items || []), ...(l.unit.review || [])])];
   const half = Math.ceil(items.length / 2);
@@ -572,6 +572,25 @@ export function dayPlan(l, day, { easy = false, review = [], seed = 1, writeWord
   const rvThemeWords = rv.flatMap((r) => (r.theme ? r.theme.words : []));
   const themeCards = tw.map((w) => ({ kn: w[0], rom: w[1], en: w[2], pic: w[3] }));
   const shortThemeWords = tw.map((w) => w[0]).filter((w) => [...w].length <= 5);
+  // Little learners (level 1): every day starts with pictures of everyday words. No questions they can't
+  // understand yet; talking comes last, as "What is this?" about a picture they've just learnt.
+  if (beginner) {
+    const tw2 = [...tw, ...rvThemeWords];
+    const cards = (list) => list.map((w) => ({ kn: w[0], rom: w[1], en: w[2], pic: w[3] }));
+    const letters = (k) => ({ kind: "write", title: "Trace today's letters", items: (k % 2 ? secondHalf : firstHalf).length ? (k % 2 ? secondHalf : firstHalf) : firstHalf, steps: ["watch", "trace"] });
+    const firstLetter = writeWord && writeWord.kind !== "none"
+      ? { kind: "write", title: writeWord.kind === "words" ? `Write a word: ${th.en}` : `First letter: ${writeWord.from.map((x) => `${x.letter} as in ${x.word}`).join(", ")}`, items: writeWord.items, steps: ["watch", "trace"] }
+      : letters(1);
+    const B = [
+      [{ kind: "listen", title: `Picture words: ${th.en}`, cards: themeCards }, { kind: "play", title: "Find the picture", mode: "words", words: tw }, letters(0), { kind: "speak", title: "Say them with Gini", items: themeCards.slice(0, 3) }],
+      [{ kind: "play", title: `Find the picture: ${th.en}`, mode: "words", words: tw }, { kind: "listen", title: "Picture words again", cards: shuffleSeed(themeCards, seed) }, letters(1), { kind: "speak", title: "Say them with Gini", items: themeCards.slice(3, 6) }],
+      [{ kind: "listen", title: `Picture words: ${th.en}`, cards: themeCards }, { kind: "talk", title: "What is this?", items: pictureTalk(th, 2, seed) }, firstLetter, { kind: "play", title: "Picture game", mode: "words", words: tw }],
+      [{ kind: "play", title: "This week and last week", mode: "words", words: shuffleSeed(tw2, seed).slice(0, 12) }, { kind: "listen", title: "Remember these?", cards: cards(shuffleSeed(tw2, seed + 1).slice(0, 8)) }, letters(0), { kind: "speak", title: "Name the pictures", items: shuffleSeed(themeCards, seed).slice(0, 4) }],
+      [{ kind: "listen", title: `Picture words: ${th.en}`, cards: themeCards }, { kind: "talk", title: "What is this?", items: pictureTalk(th, 3, seed + 5) }, firstLetter, { kind: "play", title: "Picture quiz", mode: "words", words: tw2 }],
+      [{ kind: "play", title: "Big picture quiz", mode: "words", words: tw2 }, { kind: "speak", title: "Name the pictures", items: themeCards }, { kind: "write", title: "Trace all your letters", items: items.slice(0, 4), steps: ["trace"] }],
+    ];
+    return B[Math.max(0, Math.min(5, day - 1))].filter((s) => !(s.items && !s.items.length) && !(s.cards && !s.cards.length) && !(s.words && !s.words.length));
+  }
   const plans = [
     [
       { kind: "talk", title: "Say hello to Gini", items: [daily[(seed + 0) % daily.length], picQ[0]].filter(Boolean) },
